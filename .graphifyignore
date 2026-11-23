@@ -1,0 +1,11 @@
+# Arquivos que NAO entram no grafo (ruido/binarios/gerados)
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+recordings/
+**/*.vib
+**/*.npz
+**/__pycache__/
+.pytest_cache/
+docs/img/

@@ -1,0 +1,5 @@
+# Software de aquisicao/visualizacao — Python 3.10+
+numpy>=1.24
+pyserial>=3.5
+pyqtgraph>=0.13.7
+PySide6>=6.6        # backend Qt usado pelo pyqtgraph (pode trocar por PyQt6)

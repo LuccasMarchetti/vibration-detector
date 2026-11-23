@@ -1,0 +1,84 @@
+menu "Vibration Node (Mancal)"
+
+    menu "Pinagem SPI / INT1 (LSM6DS3)"
+        config VIB_PIN_SCLK
+            int "GPIO SCLK (SPC do sensor)"
+            default 18
+        config VIB_PIN_MOSI
+            int "GPIO MOSI (SDI/SDA do sensor)"
+            default 23
+        config VIB_PIN_MISO
+            int "GPIO MISO (SDO/SA0 do sensor)"
+            default 19
+        config VIB_PIN_CS
+            int "GPIO CS do sensor"
+            default 5
+        config VIB_PIN_INT1
+            int "GPIO ligada ao INT1 do sensor"
+            default 4
+        config VIB_SPI_CLOCK_HZ
+            int "Clock SPI (Hz) — LSM6DS3 suporta ate 10 MHz"
+            range 1000000 10000000
+            default 8000000
+    endmenu
+
+    menu "Identificacao do no"
+        config VIB_NODE_ID_FORCED
+            int "ID do mancal forcado (0 = automatico pelo pino de selecao)"
+            range 0 2
+            default 0
+            help
+                0: le o pino VIB_PIN_NODE_SEL (pull-up interno).
+                   Pino aberto  -> MANCAL_1
+                   Pino em GND  -> MANCAL_2
+                1 ou 2: ignora o pino e usa esse ID fixo.
+        config VIB_PIN_NODE_SEL
+            int "GPIO de selecao do mancal (jumper para GND = MANCAL_2)"
+            default 27
+    endmenu
+
+    menu "Sensor"
+        choice VIB_FS
+            prompt "Fundo de escala do acelerometro"
+            default VIB_FS_8G
+            config VIB_FS_4G
+                bool "+/- 4 g"
+            config VIB_FS_8G
+                bool "+/- 8 g"
+            config VIB_FS_16G
+                bool "+/- 16 g"
+        endchoice
+        config VIB_FS_G
+            int
+            default 4 if VIB_FS_4G
+            default 8 if VIB_FS_8G
+            default 16 if VIB_FS_16G
+
+        choice VIB_WTM
+            prompt "Watermark da FIFO (amostras XYZ)"
+            default VIB_WTM_512
+            config VIB_WTM_512
+                bool "512 amostras (~77 ms a 6,66 kHz)"
+            config VIB_WTM_1024
+                bool "1024 amostras (~154 ms) — so LSM6DS3 original (FIFO 8 KB)"
+        endchoice
+        config VIB_WTM_SAMPLES
+            int
+            default 512 if VIB_WTM_512
+            default 1024 if VIB_WTM_1024
+    endmenu
+
+    menu "Link USB-Serial"
+        config VIB_UART_BAUD
+            int "Baud rate da UART0 (USB)"
+            default 921600
+            help
+                Taxa de dados util: ~40 kB/s (6660 amostras/s x 6 bytes).
+                921600 bps (~92 kB/s) e suficiente e funciona com CP2102/CH340.
+                2000000 bps da mais folga (verifique se a ponte USB da placa suporta).
+        config VIB_STATUS_PERIOD_MS
+            int "Periodo do pacote de status/heartbeat (ms)"
+            default 1000
+    endmenu
+
+endmenu

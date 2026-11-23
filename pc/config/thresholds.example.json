@@ -1,0 +1,10 @@
+{
+  "_comentario": "Exemplo. Valores FICTICIOS: substitua pelos limites obtidos do baseline do motor. Unidade = a da GUI (g por padrao).",
+  "rules": [
+    {"name": "RMS global alto",        "metric": "overall_rms", "limit": 0.50, "level": "alarm",   "hold": 3, "enabled": false},
+    {"name": "RMS por eixo (alerta)",  "metric": "rms",         "limit": 0.25, "axis": "any", "level": "warning", "hold": 3, "enabled": false},
+    {"name": "Curtose (impactos)",     "metric": "kurtosis",    "limit": 6.0,  "axis": "any", "level": "warning", "hold": 5, "enabled": false},
+    {"name": "Banda 1x rotacao",       "metric": "band_rms",    "limit": 0.20, "axis": "any", "band": [25, 35],    "level": "alarm",   "hold": 3, "enabled": false},
+    {"name": "Banda rolamento (alta)", "metric": "band_rms",    "limit": 0.10, "axis": "any", "band": [1500, 3300], "level": "warning", "hold": 3, "enabled": false}
+  ]
+}

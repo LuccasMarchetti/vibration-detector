@@ -1,0 +1,24 @@
+# Alvo padrão: ESP32 clássico (DevKitC / WROOM-32)
+CONFIG_IDF_TARGET="esp32"
+
+# A UART0 (ponte USB-Serial da placa) é usada EXCLUSIVAMENTE pelo protocolo
+# binário. Por isso o console de log do IDF é desligado. O bootloader ainda
+# imprime algumas linhas a 115200 bps no boot; o PC simplesmente as ignora
+# (o parser ressincroniza no cabeçalho 0xA5 0x5A).
+CONFIG_ESP_CONSOLE_NONE=y
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+
+# FreeRTOS: tick de 1 kHz e dual-core
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_UNICORE=n
+
+# Desempenho
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# ISR da GPIO e do SPI em IRAM (latência determinística)
+CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y
+CONFIG_SPI_MASTER_ISR_IN_IRAM=y
+
+# Watchdog de tarefa: a task de aquisição bloqueia em notificação, ok manter
+CONFIG_ESP_TASK_WDT_EN=y
