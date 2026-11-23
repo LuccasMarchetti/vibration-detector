@@ -4,8 +4,10 @@
  * Notas de hardware:
  *  - SPI modo 3 (CPOL=1, CPHA=1), ate 10 MHz.
  *  - Bit 7 do primeiro byte = 1 para leitura. Com IF_INC=1 o endereco
- *    auto-incrementa; ao ler a FIFO (0x3E/0x3F) o endereco "volta" para 0x3E,
+ *    auto-incrementa; ao ler a FIFO (0x3E/0x3F) em leitura multipla o
+ *    "rounding" e automatico e o endereco volta para 0x3E (AN4650, sec. 3.6.1),
  *    permitindo ler a FIFO inteira em uma unica rajada.
+ *  - Banda do acelerometro a 6,66 kHz: 3160 Hz (AN4650, tabela 9).
  */
 #include <string.h>
 #include "lsm6ds3.h"
@@ -147,11 +149,12 @@ esp_err_t lsm6ds3_init(lsm6ds3_t *dev, const lsm6ds3_config_t *cfg)
     /* BDU + auto-incremento; I2C desabilitado (somente SPI) */
     ESP_RETURN_ON_ERROR(lsm6ds3_write_reg(dev, LSM6DS3_REG_CTRL3_C,
                                           LSM6DS3_CTRL3_BDU | LSM6DS3_CTRL3_IF_INC), TAG, "c3");
+    /* XL_BW_SCAL_ODR (bit 7) fica em 0 DE PROPOSITO. No LSM6DS3 original, com
+     * ODR de 3,33/6,66 kHz e XL_BW_SCAL_ODR = 0 o filtro anti-aliasing analogico
+     * NAO e usado e so resta o LPF1 digital (3320 Hz): banda total de 3160 Hz
+     * (AN4650 Rev 2, tabelas 7, 8 e 9). Com o bit em 1 a banda analogica passaria
+     * a ser BW_XL (maximo 400 Hz), o que mataria a analise de rolamentos. */
     uint8_t ctrl4 = LSM6DS3_CTRL4_I2C_DIS;
-    if (who == LSM6DS3_WHO_AM_I_DS3) {
-        /* LSM6DS3 original: banda analogica definida por BW_XL (00 = 400 Hz, a maxima) */
-        ctrl4 |= LSM6DS3_CTRL4_BW_SCAL;
-    }
     ESP_RETURN_ON_ERROR(lsm6ds3_write_reg(dev, LSM6DS3_REG_CTRL4_C, ctrl4), TAG, "c4");
 
     /* Giroscopio desligado */
@@ -178,7 +181,7 @@ esp_err_t lsm6ds3_init(lsm6ds3_t *dev, const lsm6ds3_config_t *cfg)
     /* INT1 sinaliza watermark da FIFO (ativo em nivel alto, push-pull) */
     ESP_RETURN_ON_ERROR(lsm6ds3_write_reg(dev, LSM6DS3_REG_INT1_CTRL, LSM6DS3_INT1_FTH), TAG, "int1");
 
-    /* Acelerometro: ODR 6,66 kHz, fundo de escala, BW_XL = 00 */
+    /* Acelerometro: ODR 6,66 kHz, fundo de escala (BW_XL ignorado com XL_BW_SCAL_ODR = 0) */
     dev->full_scale = cfg->full_scale;
     uint8_t ctrl1 = (uint8_t)((LSM_ODR_6660HZ << 4) | (fs_code(cfg->full_scale) << 2));
     ESP_RETURN_ON_ERROR(lsm6ds3_write_reg(dev, LSM6DS3_REG_CTRL1_XL, ctrl1), TAG, "c1");

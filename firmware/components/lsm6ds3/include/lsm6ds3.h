@@ -40,7 +40,7 @@ extern "C" {
 #define LSM6DS3_CTRL3_IF_INC     0x04
 #define LSM6DS3_CTRL3_BDU        0x40
 #define LSM6DS3_CTRL4_I2C_DIS    0x04
-#define LSM6DS3_CTRL4_BW_SCAL    0x80 /* XL_BW_SCAL_ODR (somente LSM6DS3 original) */
+#define LSM6DS3_CTRL4_BW_SCAL    0x80 /* XL_BW_SCAL_ODR: NAO usar a 6,66 kHz (limitaria a 400 Hz) */
 #define LSM6DS3_INT1_FTH         0x08
 #define LSM6DS3_FIFO_ST2_FTH     0x80
 #define LSM6DS3_FIFO_ST2_OVR     0x40

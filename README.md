@@ -217,15 +217,23 @@ ISR (IRAM) ── notifica ──► acquisition_task  [Core 1, prioridade máx-
 4. Rode com `python -m vibmon --thresholds config/meus_limites.json`. A GUI pinta o painel do mancal e emite um
    bipe; para intertravamento (relé/CLP), adicione um callback em `AlarmChecker.hooks` (ver `alarms.py`).
 
-### ⚠️ Atenção à banda útil do sensor
+### Banda útil do sensor (conferida no AN4650 da ST)
 
-O ODR de 6,66 kHz permite representar até ~3,3 kHz, mas a **banda do filtro anti-aliasing analógico** do
-LSM6DS3 *original* (WHO_AM_I = 0x69) é limitada a **400 Hz**, segundo a tabela de banda do acelerômetro no
-datasheet. Acima disso o sinal chega atenuado (ainda dá para ver tendências, mas não amplitudes absolutas).
-Se a análise de rolamentos precisar de amplitudes confiáveis acima de ~1 kHz, considere o **LSM6DS3TR-C**
-(0x6A, também suportado por este firmware; FIFO de 4 kB, então o watermark fica limitado a ~600 amostras),
-o LSM6DSL, ou um acelerômetro dedicado de vibração. Confirme os números no datasheet da sua versão e, se
-possível, com um *shaker* ou um sinal de referência.
+Com ODR de 6,66 kHz, o LSM6DS3 original (WHO_AM_I = 0x69) tem **banda total de 3160 Hz** (AN4650 Rev 2,
+tabela 9). O motivo é que, a 3,33 e 6,66 kHz, o **filtro anti-aliasing analógico não é usado** quando
+`XL_BW_SCAL_ODR = 0` (tabela 7). Sobra só o filtro digital LPF1, com corte em 3320 Hz (tabela 8).
+
+O firmware deixa `XL_BW_SCAL_ODR = 0` de propósito. Com esse bit em 1, a banda analógica passaria a ser
+definida por `BW_XL`, cujo máximo é **400 Hz** (tabela 6). Isso eliminaria justamente as frequências de
+defeito de rolamento.
+
+Como não há filtro analógico antes do conversor nesse modo, vibrações muito acima de ~3,3 kHz (por exemplo,
+impactos metálicos ou a ressonância da fixação) podem aparecer **rebatidas** (aliasing) dentro do espectro.
+A nota da ST não informa a ordem do LPF1. Na prática, vale validar com um sinal de referência (um *shaker*,
+ou um motor girando a uma rotação conhecida) e desconfiar de picos que mudam de frequência de forma estranha
+quando a rotação muda.
+
+O LSM6DS3TR-C (0x6A) também é suportado. A FIFO dele é de 4 kB, então o watermark fica limitado a ~600 amostras.
 
 ---
 

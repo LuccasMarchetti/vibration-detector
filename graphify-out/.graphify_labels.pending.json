@@ -10,5 +10,6 @@
   "8": "Packet",
   "9": "FFT unilateral de um sinal 1-D (o DC e removido antes).",
   "10": "vibration-detector — contexto para assistentes de IA",
-  "11": "MainWindow"
+  "11": "MainWindow",
+  "12": "esp_err_t"
 }
