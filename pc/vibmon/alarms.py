@@ -92,11 +92,24 @@ class AlarmChecker:
             self.rules.append(Threshold("Desvio da baseline", "baseline_db", default_limit_db,
                                         level="warning", hold=5))
 
-    def deviation(self, res: NodeAnalysis) -> dict | None:
+    def deviation(self, res: NodeAnalysis, node=None) -> dict | None:
+        """Desvio em relacao a baseline. A comparacao usa SEMPRE a janela (tamanho e
+        tipo) e a unidade (g) da baseline: com outra janela o vazamento espectral
+        perto de tons fortes muda a potencia das bandas vizinhas e geraria falsos
+        desvios; em m/s^2 tudo ficaria 19,8 dB acima. Passe 'node' para que a
+        analise adequada seja refeita quando 'res' foi calculada de outro jeito."""
         if self.baseline is None or res.node_id not in self.baseline.nodes:
             return None
+        from .analysis import analyze
         from .baseline import DeviationTracker
 
+        nb = self.baseline.nodes[res.node_id]
+        if (res.n, res.window, res.unit) != (nb.n_window, nb.window, "g"):
+            if node is None:
+                return None
+            res = analyze(node, nb.n_window, nb.window, "g")
+            if res is None:
+                return None
         tr = self._trackers.get(res.node_id)
         if tr is None:
             tr = self._trackers[res.node_id] = DeviationTracker(self.baseline.nodes[res.node_id],
@@ -105,10 +118,11 @@ class AlarmChecker:
         self.last_deviation[res.node_id] = dev
         return dev
 
-    def check(self, res: NodeAnalysis) -> list[AlarmEvent]:
-        """Chame a cada janela analisada. Retorna os eventos NOVOS desta janela."""
+    def check(self, res: NodeAnalysis, node=None) -> list[AlarmEvent]:
+        """Chame a cada janela analisada. Retorna os eventos NOVOS desta janela.
+        'node' (NodeState) permite comparar com a baseline na janela dela."""
         new = []
-        deviations = self.deviation(res)
+        deviations = self.deviation(res, node)
         for rule in self.rules:
             if not rule.enabled or (rule.node is not None and rule.node != res.node_id):
                 continue

@@ -1,15 +1,19 @@
 {
-  "0": "gui.py",
+  "0": "test_edge.py",
   "1": "acquisition.c",
-  "2": "SimulatedSource",
-  "3": "test_sensors_baseline.py",
+  "2": "StreamParser",
+  "3": "edge_native.py",
   "4": "Guia rápido",
-  "5": "main",
+  "5": "NodeState",
   "6": "vib_sensor_t",
   "7": "numpy",
-  "8": "vib_sensor",
+  "8": "edge_core.c",
   "9": "FFT unilateral de um sinal 1-D (o DC e removido antes).",
   "10": "esp_err_t",
   "11": "MainWindow",
-  "12": "esp_err_t"
+  "12": "esp_err_t",
+  "13": "edge_monitor.c",
+  "14": "vib_protocol.c",
+  "15": "vib_protocol.h",
+  "16": "usb_link.c"
 }

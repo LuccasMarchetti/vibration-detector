@@ -4,10 +4,14 @@ Monitoramento de vibracao dos 2 mancais do motor do tunel de vento.
 - `firmware/` — ESP-IDF v6 (C). 1 binario para os 2 nos; ID do mancal pelo GPIO27 (jumper GND = MANCAL_2).
   `components/vib_sensors` (deteccao automatica pelo ID do chip + drivers LSM6DS3, BMI160, ICM-20948;
   interface em vib_sensor.h), `components/vib_protocol` (cabecalho + CRC16),
-  `main/acquisition.c` (Core 1, INT1 ou polling -> burst read), `main/usb_link.c` (Core 0, UART0 921600).
+  `main/acquisition.c` (Core 1, INT1 ou polling -> burst read), `main/usb_link.c` (Core 0, UART0 921600,
+  tambem recebe comandos), `components/vib_edge` (FFT/alarmes no ESP32: `edge_core.c` e C puro, sem IDF,
+  compilado tambem no PC por `pc/vibmon/edge_native.py`; `edge_monitor.c` = task, NVS, buzzer, parada).
 - `pc/vibmon/` — Python: `protocol.py` (espelho exato do protocolo C), `sources.py` (serial + simulador),
   `sensors.py`, `hub.py`, `node.py`, `dsp.py`, `analysis.py`, `baseline.py`, `alarms.py`, `recorder.py`,
-  `export.py`, `gui.py` (pyqtgraph).
+  `export.py`, `edge.py` (structs/comandos do alarme no ESP32), `edge_native.py`, `gui.py` (pyqtgraph).
+- Formulas de `edge_core.c` devem continuar iguais a `dsp.py`/`baseline.py` (testes em `tests/test_edge.py`).
+- Firmware no emulador: `tests/test_firmware_qemu.py` (opcional, VIBMON_QEMU_URL).
 - Novo sensor: driver em `firmware/components/vib_sensors/` + ID em `probe()` (vib_sensor.c) + `pc/vibmon/sensors.py`.
 - Testes: `cd pc && python -m pytest -q`. Rodar sem hardware: `python -m vibmon --simulate`.
 - Qualquer mudanca no protocolo deve ser feita nos DOIS lados (vib_protocol.h e protocol.py) e no teste de CRC.

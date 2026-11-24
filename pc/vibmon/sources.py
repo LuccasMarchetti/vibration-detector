@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import logging
+import queue
 import threading
 import time
 from typing import Callable
 
 import numpy as np
 
-from .protocol import PKT_DATA, PKT_STATUS, STATUS, Packet, StreamParser, encode_packet
+from .protocol import (COMMAND_TYPES, PKT_ACK, PKT_CONFIG, PKT_DATA, PKT_METRICS, PKT_STATUS, STATUS, Packet,
+                       StreamParser, encode_packet)
 from .sensors import SensorInfo, by_name
 
 log = logging.getLogger(__name__)
@@ -28,20 +30,31 @@ class SerialSource(threading.Thread):
         self.parser = StreamParser()
         self.error: str | None = None
         self._stop = threading.Event()
+        self._ser = None
+        self._wlock = threading.Lock()
 
     def stop(self) -> None:
         self._stop.set()
+
+    def send(self, data: bytes) -> bool:
+        """Envia um comando ao ESP32 (pode ser chamado de outra thread)."""
+        with self._wlock:
+            if self._ser is None:
+                return False
+            self._ser.write(data)
+            return True
 
     def run(self) -> None:
         import serial  # pyserial
 
         while not self._stop.is_set():
             try:
-                with serial.Serial(self.port, self.baud, timeout=0.05) as ser:
+                with serial.serial_for_url(self.port, self.baud, timeout=0.05) as ser:
                     # Evita reset do ESP32 ao abrir a porta (DTR/RTS ligados ao EN/IO0)
                     ser.dtr = False
                     ser.rts = False
                     ser.reset_input_buffer()
+                    self._ser = ser
                     self.error = None
                     log.info("porta %s aberta @ %d bps", self.port, self.baud)
                     while not self._stop.is_set():
@@ -50,6 +63,7 @@ class SerialSource(threading.Thread):
                             for pkt in self.parser.feed(data):
                                 self.on_packet(pkt, self.port)
             except Exception as exc:  # porta desconectada, permissao, etc.
+                self._ser = None
                 self.error = str(exc)
                 log.warning("porta %s: %s — tentando reconectar", self.port, exc)
                 self._stop.wait(1.0)
@@ -66,11 +80,15 @@ class SimulatedSource(threading.Thread):
             Componentes acima da banda sao atenuados como um filtro de 1a ordem.
     fault_after_s: apos esse tempo surge um defeito novo (tom em 3,2x rotacao +
             ressonancia), para testar a comparacao com a baseline.
+    edge:   emula tambem a analise local do ESP32 (FFT/alarmes) rodando o
+            MESMO codigo C do firmware (edge_core.c) via edge_native. Precisa de
+            um compilador C; sem ele o simulador funciona sem essa parte.
     """
 
     def __init__(self, node_id: int, on_packet: PacketCallback, *, rpm: float = 1770.0,
                  sensor: str = "LSM6DS3", block: int = 512, full_scale_g: int = 8,
-                 corrupt_every: int = 0, seed: int | None = None, fault_after_s: float = 0.0):
+                 corrupt_every: int = 0, seed: int | None = None, fault_after_s: float = 0.0,
+                 edge: bool = True):
         super().__init__(daemon=True, name=f"sim-{node_id}")
         self.node_id = node_id
         self.on_packet = on_packet
@@ -85,9 +103,29 @@ class SimulatedSource(threading.Thread):
         self.parser = StreamParser()
         self._rng = np.random.default_rng(seed if seed is not None else node_id)
         self._stop = threading.Event()
+        self._replies: queue.Queue[bytes] = queue.Queue()
+        self._cmd_parser = StreamParser(accept=COMMAND_TYPES)
+        self.edge = None
+        if edge:
+            from . import edge_native
+
+            if edge_native.available():
+                self.edge = _VirtualEdge(node_id, self.fs, full_scale_g)
+            else:
+                log.info("simulador sem analise local: %s", edge_native.error())
 
     def stop(self) -> None:
         self._stop.set()
+
+    def send(self, data: bytes) -> bool:
+        """Recebe comandos como o ESP32 real (ver _VirtualEdge.command)."""
+        if self.edge is None:
+            return False
+        for pkt in self._cmd_parser.feed(data):
+            reply = self.edge.command(pkt)
+            if reply:
+                self._replies.put(reply)
+        return True
 
     def _gain(self, f: float) -> float:
         """Atenuacao de 1a ordem acima da banda do sensor."""
@@ -143,8 +181,88 @@ class SimulatedSource(threading.Thread):
                                       sensor_type=self.sensor.code)
                 seq += 1
                 next_status += 1.0
+            if self.edge is not None:
+                data += self.edge.feed(counts, ts)
+            while not self._replies.empty():
+                data += self._replies.get_nowait()
             for pkt in self.parser.feed(data):
                 self.on_packet(pkt, self.port)
             # mantem o ritmo de tempo real
             target = t0 + first / self.fs
             self._stop.wait(max(0.0, target - time.monotonic()))
+
+
+class _VirtualEdge:
+    """Imita edge_monitor.c: janela deslizante (passo N/2), edge_core_analyze()
+    em C e tratamento de comandos com as mesmas respostas do firmware."""
+
+    def __init__(self, node_id: int, fs: float, full_scale_g: int):
+        from . import edge_native
+
+        self.native = edge_native
+        self.node_id = node_id
+        self.fs = fs
+        self.gpl = full_scale_g / 32768.0
+        self.cfg = edge_native.default_config()
+        self.base: bytes | None = None
+        self.n_bands = 0
+        self._make()
+        self._buf = np.zeros((0, 3), dtype="<i2")
+        self._since = 0
+
+    def _make(self) -> None:
+        n = int.from_bytes(self.cfg[2:4], "little")
+        self.core = self.native.NativeEdge(n, self.cfg[4])
+        self.n = n
+
+    def feed(self, counts: np.ndarray, ts: int) -> bytes:
+        self._buf = np.concatenate([self._buf, counts])[-self.n:]
+        self._since += counts.shape[0]
+        if not self.cfg[1] or self._buf.shape[0] < self.n or self._since < self.n // 2:
+            return b""
+        self._since = 0
+        match = self.base is not None and self.base[1:4] == bytes([self.cfg[4]]) + self.cfg[2:4]
+        m = bytearray(self.core.analyze(self._buf, self.gpl, self.fs, self.cfg, self.base if match else None))
+        if self.base is not None and not match:
+            m[7] |= 0x10  # baseline de outra janela: ignorada
+        outputs, state = self.cfg[6], m[6]
+        if outputs & 0x02 and state == 2:
+            m[7] |= 0x08  # saida de parada ativa
+        return encode_packet(PKT_METRICS, self.node_id, bytes(m), timestamp_us=ts, odr_hz=0, sensor_type=0)
+
+    def command(self, pkt: Packet) -> bytes | None:
+        from .edge import BASELINE, CONFIG
+
+        if pkt.node_id not in (0, self.node_id):
+            return None
+        cmd, pl, status = pkt.type, pkt.payload, 0
+        if cmd == 0x81:
+            if len(pl) != CONFIG.size:
+                status = 1
+            elif self.native.validate_config(pl) != 0:
+                status = 2
+            else:
+                old = self.cfg
+                self.cfg = bytes(pl)
+                if old[2:5] != self.cfg[2:5]:
+                    self._make()
+                self.core.reset_alarm()
+        elif cmd == 0x82:
+            n_win = int.from_bytes(pl[2:4], "little") if len(pl) >= 4 else 0
+            if len(pl) != BASELINE.size or pl[0] > 32 or pl[1] > 2 or n_win not in (1024, 2048):
+                status = 1 if len(pl) != BASELINE.size else 2
+            else:
+                self.base, self.n_bands = bytes(pl), pl[0]
+                self.core.reset_baseline()
+        elif cmd == 0x83:
+            self.base, self.n_bands = None, 0
+        elif cmd == 0x84:
+            self.core.reset_alarm()
+        elif cmd == 0x85:
+            return encode_packet(PKT_CONFIG, self.node_id, self.cfg + bytes([self.n_bands]), odr_hz=0, sensor_type=0)
+        elif cmd == 0x86:
+            status = 0 if pl[:1] in (b"\x01", b"\x02") else 5
+        else:
+            status = 3
+        ack = bytes([cmd, status]) + pkt.seq.to_bytes(2, "little")
+        return encode_packet(PKT_ACK, self.node_id, ack, odr_hz=0, sensor_type=0)

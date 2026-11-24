@@ -130,3 +130,19 @@ def test_baseline_from_recording(tmp_path):
 def test_short_capture_raises():
     with pytest.raises(ValueError):
         build_node(np.zeros((5000, 3)), 6660, 4096)
+
+
+def test_pc_deviation_ignores_gui_window_and_unit():
+    """Regressao: com a GUI em 2048/Hamming e m/s^2, a comparacao com uma baseline de
+    4096/Hann em g dava desvios falsos (vazamento) e +19,8 dB (unidade)."""
+    sim = SimulatedSource(2, lambda *a: None, rpm=1770)
+    node = NodeState(2)
+    end, _ = feed(node, sim, 14)
+    nb = build_node(node.latest(int(12 * sim.fs)), sim.fs, 4096, "hann")
+    chk = AlarmChecker()
+    chk.set_baseline(Baseline("b", {2: nb}))
+    for _ in range(12):
+        end, _ = feed(node, sim, 0.2, start=end)
+        chk.check(analyze(node, 2048, "hamming", "m/s²"), node)
+    worst = max(d.delta_db for d in chk.last_deviation[2].values())
+    assert worst < 3.0

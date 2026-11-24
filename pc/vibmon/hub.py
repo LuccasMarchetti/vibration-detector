@@ -60,6 +60,13 @@ class AcquisitionHub:
         for s in self.sources:
             s.join(timeout=2)
 
+    def send_command(self, node_id: int, data: bytes) -> bool:
+        """Envia um comando (edge.command(...)) para a porta do mancal node_id."""
+        for s in self.sources:
+            if self.port_map.get(s.port) == node_id and hasattr(s, "send"):
+                return s.send(data)
+        return False
+
     def refresh_crc_stats(self) -> None:
         for s in self.sources:
             nid = self.port_map.get(s.port)

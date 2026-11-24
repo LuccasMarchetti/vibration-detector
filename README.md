@@ -7,6 +7,8 @@ Monitoramento de vibração em tempo real dos **dois mancais do motor do túnel 
 - Software no PC: leitura das duas portas em paralelo, remoção de DC, **FFT**, **RMS / pico a pico / curtose**,
   gráficos em tempo real, **espectrograma**, gravação com anotação de rotação, **baseline espectral** do motor
   saudável com comparação ao vivo e **ganchos para alarmes**.
+- **Alarme no próprio ESP32:** o ESP32 também faz a FFT e as regras de alarme, e aciona **buzzer** e uma
+  **saída de parada do motor** sem depender do PC.
 
 ```
  Mancal 1: sensor ─SPI + INT1─► ESP32 ─USB 921600─┐
@@ -207,7 +209,56 @@ Regras importantes:
   ruído, e isso geraria alarmes falsos. No simulador, o pior desvio sem defeito ficou em 2,5 dB.
 - Bandas mais fracas que 1 mg RMS (−60 dB) são ignoradas, para o ruído de fundo do sensor não alarmar.
 
-### 6. Exportar as gravações
+### 6. Alarme no ESP32 (FFT no próprio ESP32)
+
+Cada ESP32 calcula, sozinho, a cada ~0,15 s (janela de 2048 amostras com 50 % de sobreposição):
+RMS, pico a pico, curtose e frequência dominante por eixo, RMS global, RMS em até 4 bandas de frequência
+e o desvio em relação à baseline. As regras de alarme decidem entre **OK**, **ALERTA** e **PARADA**:
+
+| Estado | Buzzer (GPIO25) | Saída de parada (GPIO26) |
+|--------|-----------------|--------------------------|
+| ALERTA | bip curto a cada 2 s | — |
+| PARADA | bipes contínuos | **aciona**, se `trip_output` estiver habilitado |
+| sensor ausente ou parado | bip curto a cada 2 s | — |
+
+O botão **BOOT** silencia o buzzer e **rearma** uma parada travada. Se a vibração continuar alta, a parada
+volta. A configuração e a baseline ficam **gravadas no ESP32 (NVS)** e valem com o PC desligado ou o
+programa fechado. Fiação em [`docs/PINAGEM.md`](docs/PINAGEM.md).
+
+**Como configurar:** copie `pc/config/edge.example.json`, ajuste os limites (em g ou dB; 0 = regra
+desligada) e envie pela barra **Alarme no ESP32** da GUI:
+
+| Botão | O que faz |
+|-------|-----------|
+| `Enviar config…` | envia e grava o JSON nos dois ESP32 (pede confirmação se habilitar a parada do motor) |
+| `Enviar baseline` | envia a baseline carregada, na variante da janela que cada ESP32 usa |
+| `Ler config` | mostra a configuração gravada em cada ESP32 |
+| `Rearmar` | o mesmo que o botão BOOT |
+| `Testar buzzer` / `Testar parada…` | aciona a saída por 1–2 s para conferir a fiação |
+
+O painel de cada mancal mostra uma linha “ESP32: …” com o estado calculado **pelo ESP32**. É útil para
+conferir que o ESP32 e o PC concordam. Com a GUI fechada, o mesmo pode ser feito pela linha de comando:
+
+```bash
+python -m vibmon.edge COM3 --config config/edge.json
+```
+
+```bash
+python -m vibmon.edge COM3 --baseline baselines/1200rpm.json --watch 10
+```
+
+Recomendações:
+- A saída de parada vem **desligada** (`"trip_output": false`). Use primeiro só os **alertas** por alguns
+  dias de operação normal e só então habilite a parada, com limites folgados.
+- **Isto não substitui a parada de emergência** do túnel. Veja os avisos de fiação e de polaridade
+  (*fail-safe*) em [`docs/PINAGEM.md`](docs/PINAGEM.md).
+- A baseline no ESP32 vale para uma rotação, como no PC. Ao trocar de rotação, envie a baseline daquela
+  rotação; ao mudar `n_window`/`window`, reenvie a baseline (o ESP32 avisa “baseline de outra janela”).
+- Por que a janela importa: perto de um tom forte (1× rotação), a energia que “vaza” para as bandas vizinhas
+  depende do tamanho e do tipo da janela. Por isso a baseline guarda médias calculadas com as janelas que o
+  ESP32 usa, e o PC compara sempre na janela da baseline.
+
+### 7. Exportar as gravações
 
 Cada sessão fica em `pc/recordings/AAAAMMDD_HHMMSS_rotulo/` com `mancal_1.vib`, `mancal_2.vib`
 (binário compacto, sem perdas, ~41 kB/s por mancal), `annotations.csv` e `session.json`. Para CSV
@@ -219,7 +270,7 @@ python -m vibmon.export recordings/20261123_143000_ensaio_1200rpm
 
 Colunas: `sample_index, t_s, x_g, y_g, z_g`. Saltos em `sample_index` indicam amostras perdidas.
 
-### 7. Problemas comuns
+### 8. Problemas comuns
 
 | Sintoma na GUI | Causa provável |
 |----------------|----------------|
@@ -227,6 +278,8 @@ Colunas: `sample_index, t_s, x_g, y_g, z_g`. Saltos em `sample_index` indicam am
 | “nenhum sensor respondeu” | fiação SPI/alimentação; teste clock SPI de 4 MHz no menuconfig |
 | sensor errado / “menuconfig pede X mas foi detectado Y” | o modelo foi fixado no menuconfig; volte para *Automático* |
 | alerta “Desvio da baseline” logo após carregar | baseline de outra rotação, outro sensor ou outra fixação |
+| “ESP32: sem análise local” | análise desligada na config (`enabled`) ou firmware antigo; regrave o firmware |
+| buzzer bipando sem motivo aparente | sensor não detectado ou parado: veja o painel do mancal |
 | “portas X e Y dizem ser MANCAL_n” | jumper do GPIO27 igual nas duas placas |
 | contador `CRC` subindo | cabo USB ruim/longo ou ruído; tente 921600 se estiver em 2 Mbps |
 | `perdidas` / `overrun` / `drops` > 0 | PC sobrecarregado ou USB lenta; feche outros programas |
@@ -240,18 +293,24 @@ Colunas: `sample_index, t_s, x_g, y_g, z_g`. Saltos em `sample_index` indicam am
 
 ```
 vib_sensor_init(): lê o ID do chip → escolhe o driver (lsm6ds3.c / bmi160.c / icm20948.c)
+edge_monitor_init(): lê config/baseline da NVS; saída de parada em "motor liberado" logo no boot
 
 FIFO do sensor (contínua)
    │ LSM6DS3 / BMI160: INT1 sobe no watermark     ICM-20948: timer de 5 ms (sem watermark)
    ▼                                              ▼
 acquisition_task  [Core 1, prioridade máx-2]
    driver.fifo_read(): SPI burst read (DMA) de toda a FIFO, já em int16 little-endian
-   acumula no bloco do pool até ≥ 512 amostras
-   │ fila de ponteiros (zero-cópia)
+   acumula no bloco do pool até ≥ 512 amostras ──────► cópia para o anel da análise local
+   │ fila de ponteiros (zero-cópia)                         │
+   │                                     edge_task [Core 1, prioridade baixa]
+   │                                       a cada N/2 amostras: edge_core_analyze()
+   │                                       (FFT real, métricas, baseline, regras)
+   │                                       → METRICS ao PC; estado → buzzer / parada
    ▼
                            usb_task  [Core 0]
                              cabeçalho + ID do mancal + timestamp µs + CRC16 → UART0/USB
                              pacote STATUS a cada 1 s (heartbeat + diagnóstico)
+                             recebe comandos do PC (config/baseline do alarme local) → ACK
 ```
 
 - **Nunca deixa a FIFO do sensor transbordar:** se o PC/USB atrasar e o pool de blocos encher, a FIFO é
@@ -275,7 +334,9 @@ acquisition_task  [Core 1, prioridade máx-2]
 | `dsp.py` / `analysis.py` | remoção de DC, janela Hann/Hamming, FFT com amplitude corrigida, RMS por banda, RMS, pico a pico, curtose, fator de crista |
 | `alarms.py` | **gancho de limiares** (RMS, curtose, RMS em banda, desvio da baseline…) com debounce e callbacks |
 | `recorder.py` / `export.py` | gravação binária sem perdas + anotações; exportação para CSV/NPZ |
-| `gui.py` | interface em tempo real (pyqtgraph): tempo, FFT, espectrograma, baseline |
+| `gui.py` | interface em tempo real (pyqtgraph): tempo, FFT, espectrograma, baseline, alarme no ESP32 |
+| `edge.py` | estruturas e comandos do alarme no ESP32 + CLI `python -m vibmon.edge` |
+| `edge_native.py` | compila e carrega no PC o **mesmo** `edge_core.c` do firmware (testes e simulador) |
 
 ### Da baseline aos alarmes
 
@@ -322,8 +383,14 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Os testes cobrem o protocolo (incluindo o vetor de CRC usado pelo firmware em C), ressincronização após lixo
-do bootloader, FFT/métricas com sinais conhecidos, detecção de perdas, alarmes e gravação → exportação.
+Os testes cobrem:
+- o protocolo, incluindo o vetor de CRC usado pelo firmware em C e a ressincronização após o lixo do bootloader;
+- FFT e métricas com sinais conhecidos, detecção de perdas, alarmes, gravação → exportação, baseline e sensores;
+- o **código C do firmware** (`edge_core.c`, `vib_protocol.c`), que é compilado no PC e comparado com o NumPy
+  (erro relativo < 10⁻⁴) — precisa de um compilador C (`gcc`/`clang`); sem ele esses testes são pulados.
+
+Há ainda um teste opcional que conversa com o **firmware real rodando no emulador QEMU do ESP32**:
+configuração, validação, baseline, gravação na NVS. As instruções estão em `pc/tests/test_firmware_qemu.py`.
 
 ---
 

@@ -91,6 +91,46 @@ menu "Vibration Node (Mancal)"
             default 1024 if VIB_WTM_1024
     endmenu
 
+    menu "Alarme local (FFT no ESP32)"
+        config VIB_PIN_BUZZER
+            int "GPIO do buzzer (-1 = sem buzzer)"
+            default 25
+        config VIB_BUZZER_PASSIVE
+            bool "Buzzer passivo (gera o tom por PWM)"
+            default y
+            help
+                Passivo: o ESP32 gera a frequencia (LEDC). Funciona tambem com a
+                maioria dos buzzers ativos. Desmarque para um buzzer ativo ligado
+                por transistor (nivel alto = toca).
+        config VIB_BUZZER_FREQ_HZ
+            int "Frequencia do tom (Hz)"
+            depends on VIB_BUZZER_PASSIVE
+            default 2700
+        config VIB_PIN_TRIP
+            int "GPIO da saida de parada do motor (-1 = sem saida)"
+            default 26
+            help
+                Liga a um modulo rele ou optoacoplador que atua na entrada de
+                parada/habilitacao do inversor. NUNCA acione a carga do motor
+                diretamente. A saida so e usada se 'trip_output' for habilitado
+                na configuracao enviada pelo PC (desligado por padrao).
+        config VIB_TRIP_ACTIVE_HIGH
+            bool "Nivel ALTO = parar o motor"
+            default y
+            help
+                Sim: a saida fica em 0 V com o motor liberado e vai a 3,3 V para parar.
+                Nao (fail-safe): a saida fica em 3,3 V com o motor liberado e vai a
+                0 V para parar. Assim, ESP32 desligado ou cabo solto tambem param
+                o motor (rele energizado = motor liberado). E a opcao recomendada
+                depois que os limites estiverem validados.
+        config VIB_PIN_ACK_BUTTON
+            int "GPIO do botao de reconhecimento (-1 = sem botao)"
+            default 0
+            help
+                Padrao: botao BOOT da placa (GPIO0). Um toque silencia o buzzer e
+                rearma a parada travada (se a vibracao ja voltou ao normal).
+    endmenu
+
     menu "Link USB-Serial"
         config VIB_UART_BAUD
             int "Baud rate da UART0 (USB)"

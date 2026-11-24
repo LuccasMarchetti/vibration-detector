@@ -1,0 +1,25 @@
+{
+  "_comentario": "Configuracao do alarme LOCAL do ESP32 (FFT no proprio ESP32). Valores FICTICIOS: ajuste com o baseline do motor. Limites em g (RMS) ou dB; 0 = regra desligada. Envie com o botao 'Enviar config' da GUI ou: python -m vibmon.edge COM3 --config config/edge.json",
+  "enabled": true,
+  "n_window": 2048,
+  "window": "hann",
+  "hold": 3,
+  "buzzer": true,
+  "trip_output": false,
+  "_trip_output": "So ligue a saida de parada depois de validar os limites com o motor rodando por varios dias sem alarmes falsos.",
+  "latch": true,
+  "f_min_hz": 2.0,
+  "overall_rms_warn": 0.30,
+  "overall_rms_trip": 0.0,
+  "kurtosis_warn": 6.0,
+  "kurtosis_trip": 0.0,
+  "baseline_db_warn": 6.0,
+  "baseline_db_trip": 0.0,
+  "baseline_floor_db": -60.0,
+  "bands": [
+    {"_nome": "1x rotacao (desbalanceamento)", "f_lo": 25, "f_hi": 35, "warn": 0.15, "trip": 0.0},
+    {"_nome": "2x rotacao (desalinhamento)",   "f_lo": 55, "f_hi": 65, "warn": 0.10, "trip": 0.0},
+    {"_nome": "alta frequencia (rolamento)",   "f_lo": 1000, "f_hi": 3000, "warn": 0.05, "trip": 0.0},
+    {"f_lo": 0, "f_hi": 0, "warn": 0, "trip": 0}
+  ]
+}

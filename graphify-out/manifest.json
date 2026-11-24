@@ -1,20 +1,20 @@
 {
   "firmware/components/vib_protocol/include/vib_protocol.h": {
-    "mtime": 1795556040.556079,
-    "seen": 1795556821.7500188,
-    "ast_hash": "801c99a5fe244c7d83281fe0c2bdfade",
+    "mtime": 1795557801.7860005,
+    "seen": 1795558177.702885,
+    "ast_hash": "12df18f0ac6f8e0914a3cae2b03ac776",
     "semantic_hash": ""
   },
   "firmware/components/vib_protocol/vib_protocol.c": {
-    "mtime": 1795453840.3448334,
-    "seen": 1795454968.9409852,
-    "ast_hash": "0e6ae04c7206b02a78a52cefc6521f5d",
+    "mtime": 1795557021.1642673,
+    "seen": 1795558177.7028866,
+    "ast_hash": "6b229aa5e4eb8902cd01a0f387d4813f",
     "semantic_hash": ""
   },
   "firmware/main/acquisition.c": {
-    "mtime": 1795556072.5691562,
-    "seen": 1795556821.7500339,
-    "ast_hash": "d9b758488c47169d8f0ee65265063e67",
+    "mtime": 1795557301.702602,
+    "seen": 1795558177.7028997,
+    "ast_hash": "a368cc9e0c99f1c400b5780d9112a648",
     "semantic_hash": ""
   },
   "firmware/main/app.h": {
@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "firmware/main/main.c": {
-    "mtime": 1795453995.6267493,
-    "seen": 1795454968.9409897,
-    "ast_hash": "7cc4ea095794b4d67203a9e6cb4e2f48",
+    "mtime": 1795557301.7024322,
+    "seen": 1795558177.7029023,
+    "ast_hash": "0fa086ed4df63b61ffb934c9f4d03c16",
     "semantic_hash": ""
   },
   "firmware/main/node_id.c": {
@@ -36,9 +36,9 @@
     "semantic_hash": ""
   },
   "firmware/main/usb_link.c": {
-    "mtime": 1795556040.9684727,
-    "seen": 1795556821.7500403,
-    "ast_hash": "99a71dc43081a1120f78f60b3bdb7332",
+    "mtime": 1795557316.0089464,
+    "seen": 1795558177.7029045,
+    "ast_hash": "c96c49021b239e726bd87d8da1110061",
     "semantic_hash": ""
   },
   "pc/config/thresholds.example.json": {
@@ -72,21 +72,21 @@
     "semantic_hash": ""
   },
   "pc/vibmon/__main__.py": {
-    "mtime": 1795556383.6868799,
-    "seen": 1795556821.7500496,
-    "ast_hash": "5997e2c65b18c760dbc867fd79816549",
+    "mtime": 1795557766.641414,
+    "seen": 1795558177.7029161,
+    "ast_hash": "744ade56d3bfc048fa1b739688bcaa08",
     "semantic_hash": ""
   },
   "pc/vibmon/alarms.py": {
-    "mtime": 1795556450.3429074,
-    "seen": 1795556821.7500508,
-    "ast_hash": "82e37b822f8f05b7b6817e74cfe8760f",
+    "mtime": 1795557766.640213,
+    "seen": 1795558177.702917,
+    "ast_hash": "6b5e6807ecaafbcc36c1176c17b83c4a",
     "semantic_hash": ""
   },
   "pc/vibmon/analysis.py": {
-    "mtime": 1795454782.452495,
-    "seen": 1795454968.9410014,
-    "ast_hash": "1569e773367e7e07b475001d5becb1ec",
+    "mtime": 1795557766.63988,
+    "seen": 1795558177.7029183,
+    "ast_hash": "55945595a5b650b9223da279eccc4967",
     "semantic_hash": ""
   },
   "pc/vibmon/dsp.py": {
@@ -102,27 +102,27 @@
     "semantic_hash": ""
   },
   "pc/vibmon/gui.py": {
-    "mtime": 1795556660.1259594,
-    "seen": 1795556821.750057,
-    "ast_hash": "2f78daad9e9ec6e0b2a89b0b6fb75042",
+    "mtime": 1795557801.78968,
+    "seen": 1795558177.7029247,
+    "ast_hash": "1295efebea3e3b02306559a8662247e4",
     "semantic_hash": ""
   },
   "pc/vibmon/hub.py": {
-    "mtime": 1795556273.5857606,
-    "seen": 1795556821.750058,
-    "ast_hash": "9b54ed50386caa7c11eb458511e59fe8",
+    "mtime": 1795557591.3506854,
+    "seen": 1795558177.7029257,
+    "ast_hash": "fe18be2fe32ba1f7b2b15bf5a7b4118e",
     "semantic_hash": ""
   },
   "pc/vibmon/node.py": {
-    "mtime": 1795556221.3760693,
-    "seen": 1795556821.750059,
-    "ast_hash": "14c34c8a49fed766540789737f49f7f6",
+    "mtime": 1795557563.0599146,
+    "seen": 1795558177.7029266,
+    "ast_hash": "4e3e610f3e43f7882ce4f95274621c81",
     "semantic_hash": ""
   },
   "pc/vibmon/protocol.py": {
-    "mtime": 1795556196.2733967,
-    "seen": 1795556821.75006,
-    "ast_hash": "037adb23d8228bbfe45b88eceb6e6cd9",
+    "mtime": 1795557139.6800213,
+    "seen": 1795558177.7029276,
+    "ast_hash": "c5f4a367eb3a26ca648f586002e363ce",
     "semantic_hash": ""
   },
   "pc/vibmon/recorder.py": {
@@ -132,9 +132,9 @@
     "semantic_hash": ""
   },
   "pc/vibmon/sources.py": {
-    "mtime": 1795556221.376344,
-    "seen": 1795556821.7500634,
-    "ast_hash": "580a9888380694dbd7fe8ad62ed09381",
+    "mtime": 1795557866.0134428,
+    "seen": 1795558177.7029312,
+    "ast_hash": "2b1751e7e98913c737d5325ba3886182",
     "semantic_hash": ""
   },
   "firmware/CMakeLists.txt": {
@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "firmware/main/CMakeLists.txt": {
-    "mtime": 1795556040.563116,
-    "seen": 1795556821.7500741,
-    "ast_hash": "0975fc5aa697b78943269088b05aaca4",
+    "mtime": 1795557301.7017453,
+    "seen": 1795558177.7029407,
+    "ast_hash": "e8e82a4b8be81ab5b956903d028bd521",
     "semantic_hash": ""
   },
   "pc/requirements-dev.txt": {
@@ -174,27 +174,27 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1795556754.8255823,
-    "seen": 1795556821.7500646,
-    "ast_hash": "bc51343fafc0bd55190904a50cba21c2",
+    "mtime": 1795558033.029706,
+    "seen": 1795558177.7029321,
+    "ast_hash": "dff3847f964ae8efb1e051d1cc6af0ea",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795556754.8251255,
-    "seen": 1795556821.7500663,
-    "ast_hash": "1f4dbeff81df67fe6e568b6d969b32c3",
+    "mtime": 1795558033.0293145,
+    "seen": 1795558177.702933,
+    "ast_hash": "b47f18403481c3f921205210d7185719",
     "semantic_hash": ""
   },
   "docs/PINAGEM.md": {
-    "mtime": 1795556709.4287071,
-    "seen": 1795556821.7500672,
-    "ast_hash": "a30cab961fe1607d18dd09faca030926",
+    "mtime": 1795558033.027751,
+    "seen": 1795558177.7029343,
+    "ast_hash": "1b4cf6f9d0b036e32be583cfcb7e92f0",
     "semantic_hash": ""
   },
   "docs/PROTOCOLO.md": {
-    "mtime": 1795556709.4293725,
-    "seen": 1795556821.7500682,
-    "ast_hash": "4702fb3246eff53c73e4914827a0eb8b",
+    "mtime": 1795558033.0281696,
+    "seen": 1795558177.7029352,
+    "ast_hash": "f0f5bf22476e9c0721bb8748091ee8fc",
     "semantic_hash": ""
   },
   "firmware/components/vib_sensors/bmi160.c": {
@@ -234,15 +234,15 @@
     "semantic_hash": ""
   },
   "pc/tests/test_sensors_baseline.py": {
-    "mtime": 1795556450.343125,
-    "seen": 1795556821.750047,
-    "ast_hash": "4ec146af381441de1fa99eedf29f3069",
+    "mtime": 1795557822.72126,
+    "seen": 1795558177.7029138,
+    "ast_hash": "e6fa29149626c2a6f015a741d6d586c2",
     "semantic_hash": ""
   },
   "pc/vibmon/baseline.py": {
-    "mtime": 1795556450.3426397,
-    "seen": 1795556821.7500532,
-    "ast_hash": "38cd3a26549b2e1a01d6d31b50d9e2c8",
+    "mtime": 1795557766.6395416,
+    "seen": 1795558177.7029195,
+    "ast_hash": "96bb5d4ae47ec5763b7c4ab4d16ca3f7",
     "semantic_hash": ""
   },
   "pc/vibmon/sensors.py": {
@@ -255,6 +255,66 @@
     "mtime": 1795555950.5896869,
     "seen": 1795556821.7500722,
     "ast_hash": "461aad9e9d13c9555e32f6e96d0768a6",
+    "semantic_hash": ""
+  },
+  "firmware/components/vib_edge/edge_core.c": {
+    "mtime": 1795557865.9977267,
+    "seen": 1795558177.702876,
+    "ast_hash": "1161bb812cb43559767a241d5f52b07e",
+    "semantic_hash": ""
+  },
+  "firmware/components/vib_edge/edge_monitor.c": {
+    "mtime": 1795557801.7868397,
+    "seen": 1795558177.7028797,
+    "ast_hash": "1b443456fc4de5557edbd3f90c86125e",
+    "semantic_hash": ""
+  },
+  "firmware/components/vib_edge/include/edge_core.h": {
+    "mtime": 1795557866.0127866,
+    "seen": 1795558177.7028813,
+    "ast_hash": "3c976a1dc4bdf694c5430d615054ed3d",
+    "semantic_hash": ""
+  },
+  "firmware/components/vib_edge/include/edge_monitor.h": {
+    "mtime": 1795557301.7014225,
+    "seen": 1795558177.7028828,
+    "ast_hash": "482049a24b27876a068d76ca4df04b8f",
+    "semantic_hash": ""
+  },
+  "pc/config/edge.example.json": {
+    "mtime": 1795557634.5586073,
+    "seen": 1795558177.702906,
+    "ast_hash": "a925bf7bd9480e71e2f3ba7a75d01a95",
+    "semantic_hash": ""
+  },
+  "pc/tests/test_edge.py": {
+    "mtime": 1795557866.013067,
+    "seen": 1795558177.7029095,
+    "ast_hash": "2e60c616f2e1fad9665dd968a95c0293",
+    "semantic_hash": ""
+  },
+  "pc/tests/test_firmware_qemu.py": {
+    "mtime": 1795557801.7899773,
+    "seen": 1795558177.7029102,
+    "ast_hash": "1b629069e258d7b87bfe9e50a998c4bb",
+    "semantic_hash": ""
+  },
+  "pc/vibmon/edge.py": {
+    "mtime": 1795557801.787096,
+    "seen": 1795558177.7029216,
+    "ast_hash": "28cdc648f067b7cca91091fd38becb02",
+    "semantic_hash": ""
+  },
+  "pc/vibmon/edge_native.py": {
+    "mtime": 1795557163.449221,
+    "seen": 1795558177.7029228,
+    "ast_hash": "c32898c5f3fcac92f403a78d2074005c",
+    "semantic_hash": ""
+  },
+  "firmware/components/vib_edge/CMakeLists.txt": {
+    "mtime": 1795557220.181645,
+    "seen": 1795558177.7029371,
+    "ast_hash": "d95190181a671e488e3cc8ea91437eac",
     "semantic_hash": ""
   }
 }

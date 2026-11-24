@@ -95,7 +95,7 @@ def main(argv=None) -> int:
                 if res is None:
                     print(f"M{nid}: sem dados suficientes (porta={st.port or '-'})")
                     continue
-                alarms.check(res)
+                alarms.check(res, node)
                 ax = " ".join(f"{k.upper()}: rms={v.metrics.rms:.4f}g kurt={v.metrics.kurtosis:.2f} "
                               f"f={v.dom_freq:.1f}Hz" for k, v in res.axes.items())
                 dev = alarms.last_deviation.get(nid)

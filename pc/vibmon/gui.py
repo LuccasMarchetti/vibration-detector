@@ -21,6 +21,10 @@ from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 from .alarms import AlarmChecker, AlarmEvent
 from .analysis import AXES, NodeAnalysis, analyze
 from .baseline import Baseline, build_node
+from . import edge as edgeproto
+from .edge import (ACK_TEXT, CMD_GET_CONFIG, CMD_NAMES, CMD_RESET_ALARM, CMD_SET_BASELINE, CMD_SET_CONFIG,
+                   CMD_TEST_OUTPUT, EdgeConfig)
+from .protocol import PKT_ACK, PKT_CONFIG
 from .hub import AcquisitionHub
 from .recorder import Recorder
 
@@ -81,10 +85,14 @@ class NodePanel(QtWidgets.QGroupBox):
         self.status = QtWidgets.QLabel("aguardando dados…")
         self.status.setWordWrap(True)
         g.addWidget(self.status, r + 2, 0, 1, 4)
+        self.edge = QtWidgets.QLabel("ESP32: —")
+        self.edge.setWordWrap(True)
+        self.edge.setToolTip("Resultado da FFT/alarmes calculados no próprio ESP32 (independe do PC)")
+        g.addWidget(self.edge, r + 3, 0, 1, 4)
         self.link = QtWidgets.QLabel("")
         self.link.setStyleSheet(f"color: {INK2}; font-size: 11px;")
         self.link.setWordWrap(True)
-        g.addWidget(self.link, r + 3, 0, 1, 4)
+        g.addWidget(self.link, r + 4, 0, 1, 4)
 
     def show_analysis(self, res: NodeAnalysis) -> None:
         u = res.unit
@@ -100,6 +108,34 @@ class NodePanel(QtWidgets.QGroupBox):
     def set_status(self, text: str, level: str) -> None:
         icon = {"good": "●", "warning": "▲", "serious": "▲", "critical": "■"}[level]
         self.status.setText(f"<span style='color:{STATUS[level]}'>{icon}</span> {text}")
+
+    def show_edge(self, node, unit: str) -> None:
+        if not node.edge_online():
+            self.edge.setText(f"<span style='color:{INK2}'>ESP32: sem análise local "
+                              f"(desligada ou firmware antigo)</span>")
+            return
+        m = node.edge
+        k = 9.80665 if unit == "m/s²" else 1.0
+        level = {0: "good", 1: "warning", 2: "critical"}[m.state]
+        icon = {0: "●", 1: "▲", 2: "■"}[m.state]
+        parts = [f"RMS {m.overall_rms * k:.4f} {unit}", f"f {m.dom_hz[0]:.1f} Hz"]
+        if m.has_baseline:
+            parts.append(f"Δbase {m.base_delta_db:+.1f} dB")
+        elif m.base_mismatch:
+            parts.append("baseline de outra janela: reenvie")
+        extra = ""
+        if m.state == 2:
+            extra = f"<br><b>{m.trip_reason}</b>"
+            if m.trip_output_active:
+                extra += " · <b>SAÍDA DE PARADA ATIVA</b>"
+            if m.latched:
+                extra += " · travada (rearmar)"
+        elif m.state == 1:
+            extra = "<br>" + ", ".join(m.active_rules)
+        if m.silenced:
+            extra += " · buzzer silenciado"
+        self.edge.setText(f"<span style='color:{STATUS[level]}'>{icon}</span> ESP32: <b>{m.state_text}</b> · "
+                          + " · ".join(parts) + extra)
 
 
 class Spectrogram:
@@ -157,6 +193,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._last_beep = 0.0
         self._results: dict[int, NodeAnalysis] = {}
         self._capture_end = 0.0
+        self._baseline_to_send: set[int] = set()
         alarms.hooks.append(self._on_alarm)
 
         central = QtWidgets.QWidget()
@@ -164,6 +201,7 @@ class MainWindow(QtWidgets.QMainWindow):
         root = QtWidgets.QVBoxLayout(central)
         root.addLayout(self._build_toolbar(n_window, window))
         root.addLayout(self._build_baseline_bar())
+        root.addLayout(self._build_edge_bar())
 
         grid = QtWidgets.QGridLayout()
         root.addLayout(grid, 1)
@@ -301,6 +339,103 @@ class MainWindow(QtWidgets.QMainWindow):
         bar.addWidget(self.cb_range)
         return bar
 
+    def _build_edge_bar(self) -> QtWidgets.QHBoxLayout:
+        bar = QtWidgets.QHBoxLayout()
+        lb = QtWidgets.QLabel("Alarme no ESP32:")
+        lb.setToolTip("FFT e alarmes calculados no próprio ESP32, com buzzer e saída de parada.\n"
+                      "A configuração fica gravada no ESP32 e vale mesmo com o PC desligado.")
+        btns = [("Enviar config…", self.edge_send_config_dialog), ("Enviar baseline", self.edge_send_baseline),
+                ("Ler config", lambda: self._edge_cmd(CMD_GET_CONFIG)),
+                ("Rearmar", lambda: self._edge_cmd(CMD_RESET_ALARM)),
+                ("Testar buzzer", lambda: self._edge_cmd(CMD_TEST_OUTPUT, b"\x01")),
+                ("Testar parada…", self.edge_test_trip)]
+        bar.addWidget(lb)
+        for text, fn in btns:
+            b = QtWidgets.QPushButton(text)
+            b.clicked.connect(fn)
+            bar.addWidget(b)
+        bar.addStretch(1)
+        return bar
+
+    # ------------------------------------------------------------------ ESP32 (borda)
+    def _edge_cmd(self, cmd: int, payload: bytes | dict = b"") -> None:
+        sent = []
+        for nid, node in self.hub.nodes.items():
+            if not node.online():
+                continue
+            pl = payload.get(nid) if isinstance(payload, dict) else payload
+            if pl is None:
+                continue
+            if self.hub.send_command(nid, edgeproto.command(cmd, nid, pl)):
+                sent.append(f"M{nid}")
+        name = CMD_NAMES.get(cmd, hex(cmd))
+        self.statusBar().showMessage(f"{name} enviado para {', '.join(sent)}" if sent
+                                     else f"{name}: nenhum ESP32 conectado", 5000)
+
+    def edge_send_config_dialog(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Configuração do alarme no ESP32", "config",
+                                                        "JSON (*.json)")
+        if not path:
+            return
+        try:
+            cfg = EdgeConfig.load(path)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Configuração inválida", str(exc))
+            return
+        if cfg.trip_output:
+            r = QtWidgets.QMessageBox.question(
+                self, "Saída de parada",
+                "Esta configuração HABILITA a saída de parada do motor.\n\n"
+                "Confirme que os limites foram validados e que a parada de emergência "
+                "física do túnel continua funcionando. Enviar?")
+            if r != QtWidgets.QMessageBox.StandardButton.Yes:
+                return
+        self._edge_cmd(CMD_SET_CONFIG, cfg.to_bytes())
+
+    def edge_send_baseline(self) -> None:
+        b = self.alarms.baseline
+        if b is None:
+            self.statusBar().showMessage("Carregue ou capture uma baseline primeiro", 5000)
+            return
+        # A media por banda depende da janela: primeiro descobre a configuracao de
+        # cada ESP32 (GET_CONFIG) e so entao envia a variante certa (_poll_edge_replies).
+        self._baseline_to_send = {nid for nid in b.nodes}
+        self._edge_cmd(CMD_GET_CONFIG)
+
+    def edge_test_trip(self) -> None:
+        r = QtWidgets.QMessageBox.question(self, "Testar saída de parada",
+                                           "Aciona a saída de parada por 2 s nos ESP32 conectados.\n"
+                                           "Se ela estiver ligada ao inversor, o MOTOR VAI PARAR. Continuar?")
+        if r == QtWidgets.QMessageBox.StandardButton.Yes:
+            self._edge_cmd(CMD_TEST_OUTPUT, b"\x02")
+
+    def _poll_edge_replies(self) -> None:
+        for nid, node in self.hub.nodes.items():
+            while node.replies:
+                p = node.replies.popleft()
+                if p.type == PKT_ACK:
+                    cmd, st, _ = edgeproto.parse_ack(p)
+                    self.statusBar().showMessage(f"Mancal {nid}: {CMD_NAMES.get(cmd, hex(cmd))} → "
+                                                 f"{ACK_TEXT.get(st, st)}", 6000)
+                elif p.type == PKT_CONFIG:
+                    cfg, nb = edgeproto.parse_config_reply(p)
+                    if nid in self._baseline_to_send:
+                        self._baseline_to_send.discard(nid)
+                        try:
+                            pl = edgeproto.baseline_payload(self.alarms.baseline.nodes[nid], cfg.n_window, cfg.window)
+                            self.hub.send_command(nid, edgeproto.command(CMD_SET_BASELINE, nid, pl))
+                        except (ValueError, KeyError, AttributeError) as exc:
+                            self.statusBar().showMessage(f"Mancal {nid}: {exc}", 8000)
+                        continue
+                    import json
+
+                    box = QtWidgets.QMessageBox(self)
+                    box.setWindowTitle(f"Configuração do ESP32 — Mancal {nid}")
+                    box.setText(f"Baseline no ESP32: {nb} bandas" if nb else "Sem baseline no ESP32")
+                    box.setDetailedText(json.dumps(cfg.to_json(), indent=2, ensure_ascii=False))
+                    box.setModal(False)
+                    box.show()
+
     def _apply_freq_range(self, text: str | None = None) -> None:
         text = text or self.cb_range.currentText()
         limits = {"0–2 kHz": 2000, "0–1 kHz": 1000, "0–500 Hz": 500, "0–200 Hz": 200}
@@ -433,6 +568,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_fft(self) -> None:
         self.hub.refresh_crc_stats()
+        self._poll_edge_replies()
         n = int(self.cb_n.currentText())
         win = self.cb_win.currentText()
         unit = self.cb_unit.currentText()
@@ -448,6 +584,7 @@ class MainWindow(QtWidgets.QMainWindow):
             info = st.status
             panel.sensor.setText(f"sensor: <b>{node.sensor_name}</b> · {node.fs_nominal:.0f} Hz · "
                                  f"banda {node.bandwidth_hz:.0f} Hz · ±{node.full_scale_g} g")
+            panel.show_edge(node, unit)
             panel.link.setText(
                 f"porta {st.port or '—'} · fs≈{node.fs_estimate():.0f} Hz · "
                 f"pacotes {st.packets} · CRC {st.crc_errors} · perdidas {st.lost_samples} · "
@@ -480,7 +617,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 continue
             self._results[nid] = res
             panel.show_analysis(res)
-            self.alarms.check(res)
+            self.alarms.check(res, node)
 
             dev = self.alarms.last_deviation.get(nid) if nb is not None else None
             if dev:

@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .protocol import FLAG_BLOCK_DROP, FLAG_FIFO_OVERRUN, NODE_NAMES, PKT_DATA, PKT_STATUS, Packet
+from .protocol import (FLAG_BLOCK_DROP, FLAG_FIFO_OVERRUN, NODE_NAMES, PKT_ACK, PKT_CONFIG, PKT_DATA, PKT_METRICS,
+                       PKT_STATUS, Packet)
 from .sensors import SENSORS, sensor_name
 
 
@@ -43,6 +44,9 @@ class NodeState:
         self._lock = threading.Lock()
         self._fs_hist: deque[tuple[int, int]] = deque(maxlen=200)  # (t_us, indice da ultima amostra)
         self.stats = LinkStats()
+        self.edge = None              # ultimo edge.EdgeMetrics recebido do ESP32
+        self.edge_rx = 0.0
+        self.replies: deque[Packet] = deque(maxlen=20)  # ACK / CONFIG do ESP32
 
     # ------------------------------------------------------------------ escrita
     def on_packet(self, pkt: Packet) -> None:
@@ -58,6 +62,15 @@ class NodeState:
             st.status = pkt.status()
             if pkt.sensor_type:
                 self.sensor_type = pkt.sensor_type
+            return
+        if pkt.type == PKT_METRICS:
+            from .edge import EdgeMetrics
+
+            self.edge = EdgeMetrics.from_bytes(pkt.payload)
+            self.edge_rx = time.monotonic()
+            return
+        if pkt.type in (PKT_ACK, PKT_CONFIG):
+            self.replies.append(pkt)
             return
         if pkt.type != PKT_DATA:
             return
@@ -127,6 +140,9 @@ class NodeState:
             return float(bw)
         info = SENSORS.get(self.sensor_type)
         return float(info.bandwidth_hz) if info else self.fs_nominal / 2
+
+    def edge_online(self, timeout: float = 3.0) -> bool:
+        return self.edge is not None and (time.monotonic() - self.edge_rx) < timeout
 
     def online(self, timeout: float = 2.0) -> bool:
         return (time.monotonic() - self.stats.last_rx) < timeout

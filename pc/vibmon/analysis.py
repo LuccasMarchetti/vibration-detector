@@ -26,6 +26,7 @@ class NodeAnalysis:
     n: int
     unit: str
     axes: dict[str, AxisResult]
+    window: str = "hann"
 
     @property
     def overall_rms(self) -> float:
@@ -46,4 +47,4 @@ def analyze(node: NodeState, n_window: int = 2048, window: str = "hann",
         spec = dsp.spectrum(x, fs, window)
         f, a = dsp.dominant_frequency(spec, f_min)
         axes[ax] = AxisResult(dsp.metrics(x), spec, f, a)
-    return NodeAnalysis(node.node_id, fs, n_window, unit, axes)
+    return NodeAnalysis(node.node_id, fs, n_window, unit, axes, window)

@@ -27,6 +27,7 @@
 #include "sdkconfig.h"
 #include "vib_sensor.h"
 #include "vib_protocol.h"
+#include "edge_monitor.h"
 #include "app.h"
 
 static const char *TAG = "acq";
@@ -122,11 +123,14 @@ static void acquisition_task(void *arg)
                     pending_flags |= VIB_FLAG_FIFO_OVERRUN; /* vai no proximo bloco */
                 }
                 sample_index += s_sens.fifo_capacity_samples;
+                edge_monitor_feed(NULL, 0, t_us, true); /* janela da FFT nao atravessa a lacuna */
                 break;
             }
             if (n == 0) {
                 break;
             }
+            /* copia para a analise local (FFT no ESP32), mesmo se o bloco for descartado */
+            edge_monitor_feed(dst, n, t_us, false);
             uint16_t fifo_words = (uint16_t)(n * 3);
             if (fifo_words > g_stats.max_fifo_words) {
                 g_stats.max_fifo_words = fifo_words;

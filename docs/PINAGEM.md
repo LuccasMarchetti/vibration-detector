@@ -42,6 +42,36 @@ prefira o mesmo modelo nos dois.
 
 Todos os pinos podem ser alterados em `idf.py menuconfig` → *Vibration Node (Mancal)*.
 
+## Alarme local: buzzer, saída de parada e botão (opcional)
+
+O ESP32 faz a FFT e as regras de alarme sozinho (ver README, “Alarme no ESP32”). Para ele avisar sem o PC:
+
+```
+  ESP32 GPIO25 ──────────────────► buzzer (+)      buzzer (−) ── GND
+                                    passivo ou ativo; até ~20 mA direto no pino,
+                                    acima disso use um transistor (ex.: 2N2222 + resistor de 1 kΩ na base)
+
+  ESP32 GPIO26 ──► IN do módulo relé / optoacoplador ──► contato ──► entrada de PARADA/HABILITA do inversor
+                   (alimentado por 5 V ou 3,3 V conforme o módulo)
+
+  Botão BOOT da placa (GPIO0) = reconhecer: silencia o buzzer e rearma a parada travada
+```
+
+| Sinal | ESP32 | Observação |
+|-------|-------|------------|
+| Buzzer | GPIO25 | `-1` no menuconfig desativa; tom de 2,7 kHz por PWM (buzzer passivo) |
+| Saída de parada | GPIO26 | só atua se `trip_output` estiver habilitado na configuração enviada pelo PC (**desligado por padrão**) |
+| Reconhecer / rearmar | GPIO0 (botão BOOT) | pode trocar por um botão externo para GND |
+
+> ⚠️ **A saída de parada NÃO é uma função de segurança certificada.** A parada de emergência do túnel
+> continua sendo o circuito físico existente. Nunca ligue o motor ou a rede elétrica direto no ESP32:
+> use um módulo relé ou optoacoplador atuando na **entrada de comando** do inversor/contator.
+>
+> Polaridade (menuconfig → *Alarme local*): por padrão, **nível alto = parar**. A opção *fail-safe*
+> (desmarcar “Nível ALTO = parar o motor”) mantém a saída em 3,3 V com o motor liberado. Assim, um ESP32
+> desligado, travado ou com cabo solto também para o motor. É a opção recomendada depois que os limites
+> estiverem validados, mas qualquer reinício do ESP32 vai parar o túnel.
+
 ## Nomes dos pinos em cada módulo
 
 | ESP32  | Função SPI | LSM6DS3        | BMI160 (ex.: GY-BMI160) | ICM-20948 (ex.: SparkFun / genéricos) |

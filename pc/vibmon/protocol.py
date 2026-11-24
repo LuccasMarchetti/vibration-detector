@@ -15,6 +15,11 @@ SYNC = b"\xA5\x5A"
 VERSION = 1
 PKT_DATA = 1
 PKT_STATUS = 2
+PKT_METRICS = 3   # resultado da FFT/alarmes feitos no ESP32 (ver edge.py)
+PKT_CONFIG = 4    # resposta a GET_CONFIG
+PKT_ACK = 5       # confirmacao de comando
+DEVICE_TYPES = frozenset({PKT_DATA, PKT_STATUS, PKT_METRICS, PKT_CONFIG, PKT_ACK})
+COMMAND_TYPES = frozenset(range(0x81, 0x87))
 
 FLAG_FIFO_OVERRUN = 0x01
 FLAG_BLOCK_DROP = 0x02
@@ -105,7 +110,8 @@ class StreamParser:
     """Parser incremental robusto: aceita bytes em pedacos arbitrarios,
     ressincroniza no sync 0xA5 0x5A e descarta pacotes com CRC invalido."""
 
-    def __init__(self) -> None:
+    def __init__(self, accept: frozenset[int] = DEVICE_TYPES) -> None:
+        self.accept = accept
         self._buf = bytearray()
         self.crc_errors = 0
         self.bytes_skipped = 0
@@ -130,7 +136,7 @@ class StreamParser:
             if n - pos < HEADER_SIZE:
                 break
             (_, ver, ptype, node, flags, fs, stype, seq, plen, ts, first, odr) = HEADER.unpack_from(buf, pos)
-            if ver != VERSION or ptype not in (PKT_DATA, PKT_STATUS) or plen > MAX_PAYLOAD:
+            if ver != VERSION or ptype not in self.accept or plen > MAX_PAYLOAD:
                 pos += 1  # sync falso
                 self.bytes_skipped += 1
                 continue

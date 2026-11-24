@@ -12,6 +12,8 @@
 #include "freertos/queue.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
+#include "edge_monitor.h"
 #include "app.h"
 
 static const char *TAG = "main";
@@ -23,6 +25,20 @@ QueueHandle_t g_tx_q;
 void app_main(void)
 {
     g_stats.node_id = node_id_detect();
+
+    /* NVS guarda a configuracao do alarme local e a baseline */
+    esp_err_t nerr = nvs_flash_init();
+    if (nerr == ESP_ERR_NVS_NO_FREE_PAGES || nerr == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        nerr = nvs_flash_init();
+    }
+    if (nerr != ESP_OK) {
+        ESP_LOGE(TAG, "NVS indisponivel: %s", esp_err_to_name(nerr));
+    }
+    /* Cedo: coloca a saida de parada no estado "motor liberado" logo no boot */
+    if (edge_monitor_init(g_stats.node_id) != ESP_OK) {
+        ESP_LOGE(TAG, "alarme local nao iniciado (memoria)");
+    }
 
     g_free_q = xQueueCreate(VIB_POOL_BLOCKS, sizeof(vib_block_t *));
     g_tx_q = xQueueCreate(VIB_POOL_BLOCKS, sizeof(vib_block_t *));
@@ -39,5 +55,8 @@ void app_main(void)
     esp_err_t err = acquisition_start();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Falha na aquisicao: %s — verifique o sensor", esp_err_to_name(err));
+        edge_monitor_set_sensor(-1.0f, 0.0f); /* buzzer avisa: sem sensor */
+    } else {
+        edge_monitor_set_sensor((float)g_stats.odr_hz, (float)g_stats.full_scale_g / 32768.0f);
     }
 }

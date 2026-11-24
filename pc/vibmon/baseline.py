@@ -64,6 +64,10 @@ class NodeBaseline:
     bands: np.ndarray                   # (k, 3) lo, centro, hi
     band_mean: dict[str, np.ndarray]    # dB
     band_std: dict[str, np.ndarray]     # dB
+    # Media por banda recalculada com as janelas que o ESP32 usa ("2048_hann",
+    # "1024_rect"...): perto de tons fortes o vazamento espectral depende do
+    # tamanho/tipo da janela, entao cada configuracao precisa da sua referencia.
+    edge_mean: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
 
     def to_json(self) -> dict:
         r = lambda a, d=6: np.round(np.asarray(a, dtype=float), d).tolist()  # noqa: E731
@@ -71,14 +75,16 @@ class NodeBaseline:
                 "n_windows": self.n_windows, "freqs": r(self.freqs, 3), "bands": r(self.bands, 3),
                 "amp": {a: r(v, 7) for a, v in self.amp.items()},
                 "band_mean": {a: r(v, 3) for a, v in self.band_mean.items()},
-                "band_std": {a: r(v, 3) for a, v in self.band_std.items()}}
+                "band_std": {a: r(v, 3) for a, v in self.band_std.items()},
+                "edge_mean": {k: {a: r(v, 3) for a, v in d.items()} for k, d in self.edge_mean.items()}}
 
     @classmethod
     def from_json(cls, d: dict) -> "NodeBaseline":
         arr = lambda v: np.asarray(v, dtype=float)  # noqa: E731
         return cls(d["fs"], d["n_window"], d["window"], d.get("sensor", ""), d["n_windows"], arr(d["freqs"]),
                    {a: arr(v) for a, v in d["amp"].items()}, arr(d["bands"]),
-                   {a: arr(v) for a, v in d["band_mean"].items()}, {a: arr(v) for a, v in d["band_std"].items()})
+                   {a: arr(v) for a, v in d["band_mean"].items()}, {a: arr(v) for a, v in d["band_std"].items()},
+                   {k: {a: arr(v) for a, v in e.items()} for k, e in d.get("edge_mean", {}).items()})
 
 
 @dataclass
@@ -106,6 +112,31 @@ class Baseline:
         return cls(d["label"], nodes, d.get("created", ""), d.get("rpm", ""), d.get("source", ""))
 
 
+EDGE_WINDOWS = [(n, w) for n in (1024, 2048) for w in ("hann", "hamming", "rect")]
+
+
+def _band_matrix(freqs: np.ndarray, bands: np.ndarray) -> np.ndarray:
+    """Matriz (raias x bandas) com 1 onde a raia cai em [lo, hi)."""
+    return ((freqs[:, None] >= bands[None, :, 0]) & (freqs[:, None] < bands[None, :, 2])).astype(float)
+
+
+def _segment_band_db(x: np.ndarray, fs: float, n: int, window: str, bands: np.ndarray,
+                     overlap: float = 0.5) -> np.ndarray:
+    """dB por banda de cada segmento (segmentos x bandas), vetorizado.
+    Mesmas formulas de dsp.spectrum().power e do edge_core.c."""
+    step = max(1, int(n * (1 - overlap)))
+    idx = np.arange(0, x.size - n + 1, step)[:, None] + np.arange(n)[None, :]
+    seg = x[idx]
+    seg = seg - seg.mean(axis=1, keepdims=True)
+    w = dsp.make_window(window, n)
+    X = np.fft.rfft(seg * w, axis=1)
+    p = 2.0 * np.abs(X) ** 2 / (n * np.sum(w ** 2))
+    p[:, 0] /= 2
+    p[:, -1] /= 2
+    M = _band_matrix(np.fft.rfftfreq(n, 1 / fs), bands)
+    return 10 * np.log10(p @ M + DB_EPS)
+
+
 def build_node(xyz: np.ndarray, fs: float, n_window: int = 4096, window: str = "hann",
                sensor: str = "", overlap: float = 0.5) -> NodeBaseline:
     """Baseline de um mancal a partir de um trecho continuo (n, 3) em g."""
@@ -126,8 +157,14 @@ def build_node(xyz: np.ndarray, fs: float, n_window: int = 4096, window: str = "
             amp_sum[a] = amp_sum[a] + spec.amp
             dbs[a].append(band_db(spec, bands))
     n = len(starts)
+    edge = {}
+    for en, ew in EDGE_WINDOWS:
+        if xyz.shape[0] >= en * 2:
+            edge[f"{en}_{ew}"] = {a: _segment_band_db(xyz[:, i], fs, en, ew, bands, overlap).mean(axis=0)
+                                  for i, a in enumerate(AXES)}
     return NodeBaseline(fs, n_window, window, sensor, n, freqs, {a: amp_sum[a] / n for a in AXES}, bands,
-                        {a: np.mean(dbs[a], axis=0) for a in AXES}, {a: np.std(dbs[a], axis=0) for a in AXES})
+                        {a: np.mean(dbs[a], axis=0) for a in AXES}, {a: np.std(dbs[a], axis=0) for a in AXES},
+                        edge)
 
 
 @dataclass
