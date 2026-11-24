@@ -49,12 +49,13 @@ def test_resync_after_garbage_and_crc_error():
 
 
 def test_status_payload():
-    st = STATUS.pack(1, 2, 3, 4000, 512, 1600, 0x69)
-    raw = encode_packet(PKT_STATUS, 2, st)
+    st = STATUS.pack(1, 2, 3, 4000, 512, 1600, 0xD1, 3, 684)
+    raw = encode_packet(PKT_STATUS, 2, st, sensor_type=3, odr_hz=1600)
     (pkt,) = StreamParser().feed(raw)
     s = pkt.status()
-    assert s["who_am_i"] == 0x69 and s["fifo_overruns"] == 1 and s["wtm_samples"] == 512
-    assert pkt.node_id == 2
+    assert s["who_am_i"] == 0xD1 and s["fifo_overruns"] == 1 and s["wtm_samples"] == 512
+    assert s["sensor_type"] == 3 and s["bandwidth_hz"] == 684
+    assert pkt.node_id == 2 and pkt.sensor_type == 3 and pkt.odr_hz == 1600
 
 
 def test_crc_little_endian_at_end():

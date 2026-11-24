@@ -4,10 +4,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
-/* Capacidade maxima da FIFO do LSM6DS3 original: 4096 palavras = 1365 amostras XYZ */
+/* Maior FIFO suportada: LSM6DS3 original, 4096 palavras = 1365 amostras XYZ */
 #define VIB_BLOCK_MAX_SAMPLES 1364  /* par (multiplo de 2) — ver regra de DMA */
 #define VIB_POOL_BLOCKS 6           /* ~6 x 8 KB = 49 KB de RAM DMA */
-#define VIB_ODR_HZ 6660
 
 typedef struct {
     uint64_t timestamp_us;   /* esp_timer no inicio da leitura da FIFO */
@@ -27,6 +26,9 @@ typedef struct {
     uint8_t who_am_i;        /* 0 = sensor nao encontrado */
     uint8_t node_id;
     uint8_t full_scale_g;
+    uint8_t sensor_type;     /* vib_sensor_type_t */
+    uint16_t odr_hz;
+    uint16_t bandwidth_hz;
 } vib_stats_t;
 
 extern vib_stats_t g_stats;

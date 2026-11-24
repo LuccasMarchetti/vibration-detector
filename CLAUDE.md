@@ -2,10 +2,13 @@
 
 Monitoramento de vibracao dos 2 mancais do motor do tunel de vento.
 - `firmware/` — ESP-IDF v6 (C). 1 binario para os 2 nos; ID do mancal pelo GPIO27 (jumper GND = MANCAL_2).
-  `components/lsm6ds3` (driver SPI + FIFO), `components/vib_protocol` (cabecalho + CRC16),
-  `main/acquisition.c` (Core 1, INT1 -> burst read), `main/usb_link.c` (Core 0, UART0 921600).
+  `components/vib_sensors` (deteccao automatica pelo ID do chip + drivers LSM6DS3, BMI160, ICM-20948;
+  interface em vib_sensor.h), `components/vib_protocol` (cabecalho + CRC16),
+  `main/acquisition.c` (Core 1, INT1 ou polling -> burst read), `main/usb_link.c` (Core 0, UART0 921600).
 - `pc/vibmon/` — Python: `protocol.py` (espelho exato do protocolo C), `sources.py` (serial + simulador),
-  `hub.py`, `node.py`, `dsp.py`, `analysis.py`, `alarms.py`, `recorder.py`, `export.py`, `gui.py` (pyqtgraph).
+  `sensors.py`, `hub.py`, `node.py`, `dsp.py`, `analysis.py`, `baseline.py`, `alarms.py`, `recorder.py`,
+  `export.py`, `gui.py` (pyqtgraph).
+- Novo sensor: driver em `firmware/components/vib_sensors/` + ID em `probe()` (vib_sensor.c) + `pc/vibmon/sensors.py`.
 - Testes: `cd pc && python -m pytest -q`. Rodar sem hardware: `python -m vibmon --simulate`.
 - Qualquer mudanca no protocolo deve ser feita nos DOIS lados (vib_protocol.h e protocol.py) e no teste de CRC.
 

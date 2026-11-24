@@ -5,6 +5,8 @@ Depois de levantar os valores normais (gravacoes + export), edite
 config/thresholds.json e rode com --thresholds config/thresholds.json.
 
 Cada regra compara uma metrica de um eixo (ou de todos) com um limite.
+A metrica 'baseline_db' e o maior aumento (dB) de uma banda de 1/3 de oitava
+em relacao a baseline carregada (ver baseline.py); sem baseline ela e ignorada.
 Uma regra so dispara depois de 'hold' janelas consecutivas acima do limite
 (evita alarme por um transiente isolado). Os callbacks em AlarmChecker.hooks
 recebem cada AlarmEvent — e ai que entram o alerta sonoro da GUI e, no
@@ -25,7 +27,7 @@ from .analysis import NodeAnalysis
 @dataclass
 class Threshold:
     name: str
-    metric: str                 # rms | peak_to_peak | kurtosis | crest | band_rms | overall_rms
+    metric: str                 # rms | peak_to_peak | kurtosis | crest | band_rms | overall_rms | baseline_db
     limit: float
     node: int | None = None     # 1, 2 ou None (ambos)
     axis: str = "any"           # x | y | z | any
@@ -48,9 +50,11 @@ class AlarmEvent:
                 f"{self.rule.metric}={self.value:.4g} > {self.rule.limit:.4g}")
 
 
-def _value(res: NodeAnalysis, rule: Threshold, axis: str) -> float:
+def _value(res: NodeAnalysis, rule: Threshold, axis: str, deviations: dict | None) -> float | None:
     if rule.metric == "overall_rms":
         return res.overall_rms
+    if rule.metric == "baseline_db":
+        return deviations[axis].delta_db if deviations else None
     ar = res.axes[axis]
     if rule.metric == "band_rms":
         return dsp.band_rms(ar.spectrum, *rule.band)
@@ -63,6 +67,10 @@ class AlarmChecker:
         self.hooks: list[Callable[[AlarmEvent], None]] = []
         self._count: dict[tuple, int] = {}
         self.active: dict[tuple, AlarmEvent] = {}
+        self.baseline = None                  # baseline.Baseline | None
+        self._trackers: dict[int, object] = {}
+        self.baseline_floor_db = -60.0
+        self.last_deviation: dict[int, dict] = {}  # node_id -> {eixo: Deviation}
 
     @classmethod
     def from_file(cls, path: str | Path) -> "AlarmChecker":
@@ -74,9 +82,33 @@ class AlarmChecker:
             rules.append(Threshold(**r))
         return cls(rules)
 
+    def set_baseline(self, baseline, default_limit_db: float | None = 6.0) -> None:
+        """Carrega uma baseline. Se nao houver regra 'baseline_db', cria um ALERTA
+        padrao (+6 dB numa banda por 5 janelas seguidas)."""
+        self.baseline = baseline
+        self.last_deviation.clear()
+        self._trackers.clear()
+        if default_limit_db and not any(r.metric == "baseline_db" for r in self.rules):
+            self.rules.append(Threshold("Desvio da baseline", "baseline_db", default_limit_db,
+                                        level="warning", hold=5))
+
+    def deviation(self, res: NodeAnalysis) -> dict | None:
+        if self.baseline is None or res.node_id not in self.baseline.nodes:
+            return None
+        from .baseline import DeviationTracker
+
+        tr = self._trackers.get(res.node_id)
+        if tr is None:
+            tr = self._trackers[res.node_id] = DeviationTracker(self.baseline.nodes[res.node_id],
+                                                                floor_db=self.baseline_floor_db)
+        dev = tr.update(res)
+        self.last_deviation[res.node_id] = dev
+        return dev
+
     def check(self, res: NodeAnalysis) -> list[AlarmEvent]:
         """Chame a cada janela analisada. Retorna os eventos NOVOS desta janela."""
         new = []
+        deviations = self.deviation(res)
         for rule in self.rules:
             if not rule.enabled or (rule.node is not None and rule.node != res.node_id):
                 continue
@@ -84,7 +116,9 @@ class AlarmChecker:
                 list(res.axes) if rule.axis == "any" else [rule.axis])
             for ax in axes:
                 key = (rule.name, res.node_id, ax)
-                v = _value(res, rule, ax)
+                v = _value(res, rule, ax, deviations)
+                if v is None:
+                    continue
                 if v > rule.limit:
                     self._count[key] = self._count.get(key, 0) + 1
                     if self._count[key] >= rule.hold and key not in self.active:

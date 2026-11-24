@@ -19,14 +19,16 @@ PKT_STATUS = 2
 FLAG_FIFO_OVERRUN = 0x01
 FLAG_BLOCK_DROP = 0x02
 
-# sync, version, type, node_id, flags, full_scale_g, reserved, seq, payload_len,
+# sync, version, type, node_id, flags, full_scale_g, sensor_type, seq, payload_len,
 # timestamp_us, first_sample, odr_hz
 HEADER = struct.Struct("<2sBBBBBBHHQIH")
 HEADER_SIZE = HEADER.size  # 26
 CRC_SIZE = 2
 MAX_PAYLOAD = 8192
 
-STATUS = struct.Struct("<IIIIHHB3x")  # 24 bytes
+# fifo_overruns, block_drops, packets_sent, uptime_ms, wtm_samples, max_fifo_words,
+# who_am_i, sensor_type, bandwidth_hz
+STATUS = struct.Struct("<IIIIHHBBH")  # 24 bytes
 
 NODE_NAMES = {1: "MANCAL_1", 2: "MANCAL_2"}
 
@@ -42,6 +44,7 @@ class Packet:
     node_id: int
     flags: int
     full_scale_g: int
+    sensor_type: int
     seq: int
     timestamp_us: int
     first_sample: int
@@ -62,7 +65,7 @@ class Packet:
         return self.counts().astype(np.float32) * (self.full_scale_g / 32768.0)
 
     def status(self) -> dict:
-        ov, drops, sent, up, wtm, maxw, who = STATUS.unpack(self.payload[: STATUS.size])
+        ov, drops, sent, up, wtm, maxw, who, stype, bw = STATUS.unpack(self.payload[: STATUS.size])
         return {
             "fifo_overruns": ov,
             "block_drops": drops,
@@ -71,6 +74,8 @@ class Packet:
             "wtm_samples": wtm,
             "max_fifo_words": maxw,
             "who_am_i": who,
+            "sensor_type": stype,
+            "bandwidth_hz": bw,
         }
 
 
@@ -85,10 +90,11 @@ def encode_packet(
     full_scale_g: int = 8,
     flags: int = 0,
     odr_hz: int = 6660,
+    sensor_type: int = 1,
 ) -> bytes:
     """Monta um pacote igual ao do firmware (usado pelo simulador e testes)."""
     hdr = HEADER.pack(
-        SYNC, VERSION, ptype, node_id, flags, full_scale_g, 0,
+        SYNC, VERSION, ptype, node_id, flags, full_scale_g, sensor_type,
         seq & 0xFFFF, len(payload), timestamp_us, first_sample & 0xFFFFFFFF, odr_hz,
     )
     crc = crc16(hdr[2:] + payload)
@@ -123,7 +129,7 @@ class StreamParser:
             pos = i
             if n - pos < HEADER_SIZE:
                 break
-            (_, ver, ptype, node, flags, fs, _r, seq, plen, ts, first, odr) = HEADER.unpack_from(buf, pos)
+            (_, ver, ptype, node, flags, fs, stype, seq, plen, ts, first, odr) = HEADER.unpack_from(buf, pos)
             if ver != VERSION or ptype not in (PKT_DATA, PKT_STATUS) or plen > MAX_PAYLOAD:
                 pos += 1  # sync falso
                 self.bytes_skipped += 1
@@ -139,7 +145,7 @@ class StreamParser:
                 self.bytes_skipped += 1
                 continue
             raw = bytes(buf[pos : pos + total])
-            out.append(Packet(ptype, node, flags, fs, seq, ts, first, odr, body[HEADER_SIZE - 2 :], raw))
+            out.append(Packet(ptype, node, flags, fs, stype, seq, ts, first, odr, body[HEADER_SIZE - 2 :], raw))
             self.packets_ok += 1
             pos += total
         del buf[:pos]

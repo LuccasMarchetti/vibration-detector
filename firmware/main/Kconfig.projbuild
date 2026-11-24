@@ -1,6 +1,6 @@
 menu "Vibration Node (Mancal)"
 
-    menu "Pinagem SPI / INT1 (LSM6DS3)"
+    menu "Pinagem SPI / INT1 do sensor"
         config VIB_PIN_SCLK
             int "GPIO SCLK (SPC do sensor)"
             default 18
@@ -17,7 +17,7 @@ menu "Vibration Node (Mancal)"
             int "GPIO ligada ao INT1 do sensor"
             default 4
         config VIB_SPI_CLOCK_HZ
-            int "Clock SPI (Hz) — LSM6DS3 suporta ate 10 MHz"
+            int "Clock SPI maximo (Hz) — ICM-20948 fica limitado a 7 MHz"
             range 1000000 10000000
             default 8000000
     endmenu
@@ -38,6 +38,29 @@ menu "Vibration Node (Mancal)"
     endmenu
 
     menu "Sensor"
+        choice VIB_SENSOR
+            prompt "Modelo do acelerometro"
+            default VIB_SENSOR_AUTO
+            help
+                Automatico: identifica o chip pelo registrador de ID
+                (LSM6DS3 0x69, LSM6DS3TR-C 0x6A, BMI160 0xD1, ICM-20948 0xEA).
+                Escolher um modelo fixo so faz o firmware recusar outro chip.
+            config VIB_SENSOR_AUTO
+                bool "Automatico (recomendado)"
+            config VIB_SENSOR_LSM6DS3
+                bool "LSM6DS3 / LSM6DS3TR-C (6660 Hz, banda 3160 Hz)"
+            config VIB_SENSOR_BMI160
+                bool "BMI160 (1600 Hz, banda 684 Hz)"
+            config VIB_SENSOR_ICM20948
+                bool "ICM-20948 (4500 Hz, banda 1209 Hz)"
+        endchoice
+        config VIB_SENSOR_TYPE
+            int
+            default 0 if VIB_SENSOR_AUTO
+            default 1 if VIB_SENSOR_LSM6DS3
+            default 3 if VIB_SENSOR_BMI160
+            default 4 if VIB_SENSOR_ICM20948
+
         choice VIB_FS
             prompt "Fundo de escala do acelerometro"
             default VIB_FS_8G
@@ -55,12 +78,12 @@ menu "Vibration Node (Mancal)"
             default 16 if VIB_FS_16G
 
         choice VIB_WTM
-            prompt "Watermark da FIFO (amostras XYZ)"
+            prompt "Amostras por pacote / watermark da FIFO (XYZ)"
             default VIB_WTM_512
             config VIB_WTM_512
                 bool "512 amostras (~77 ms a 6,66 kHz)"
             config VIB_WTM_1024
-                bool "1024 amostras (~154 ms) — so LSM6DS3 original (FIFO 8 KB)"
+                bool "1024 amostras (~154 ms) — so LSM6DS3 original usa como watermark"
         endchoice
         config VIB_WTM_SAMPLES
             int

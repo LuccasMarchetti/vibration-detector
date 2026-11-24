@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .protocol import FLAG_BLOCK_DROP, FLAG_FIFO_OVERRUN, NODE_NAMES, PKT_DATA, PKT_STATUS, Packet
+from .sensors import SENSORS, sensor_name
 
 
 @dataclass
@@ -28,11 +29,12 @@ class LinkStats:
 class NodeState:
     """Thread-safe: a thread da serial escreve, a GUI/analise le."""
 
-    def __init__(self, node_id: int, seconds: float = 10.0, fs_nominal: float = 6660.0):
+    def __init__(self, node_id: int, seconds: float = 60.0, fs_nominal: float = 6660.0):
         self.node_id = node_id
         self.name = NODE_NAMES.get(node_id, f"NO_{node_id}")
         self.fs_nominal = fs_nominal
         self.full_scale_g = 8
+        self.sensor_type = 0
         self._cap = int(seconds * fs_nominal)
         self._buf = np.zeros((self._cap, 3), dtype=np.float32)
         self._w = 0            # total de amostras escritas
@@ -54,13 +56,18 @@ class NodeState:
 
         if pkt.type == PKT_STATUS:
             st.status = pkt.status()
+            if pkt.sensor_type:
+                self.sensor_type = pkt.sensor_type
             return
         if pkt.type != PKT_DATA:
             return
 
         st.packets += 1
         self.full_scale_g = pkt.full_scale_g
-        self.fs_nominal = float(pkt.odr_hz)
+        self.sensor_type = pkt.sensor_type
+        if float(pkt.odr_hz) != self.fs_nominal:
+            self.fs_nominal = float(pkt.odr_hz)
+            self._fs_hist.clear()
         if pkt.flags & FLAG_FIFO_OVERRUN:
             st.overrun_flags += 1
         if pkt.flags & FLAG_BLOCK_DROP:
@@ -107,6 +114,19 @@ class NodeState:
         if t1 <= t0 or i1 <= i0:
             return self.fs_nominal
         return (i1 - i0) / ((t1 - t0) * 1e-6)
+
+    @property
+    def sensor_name(self) -> str:
+        return sensor_name(self.sensor_type)
+
+    @property
+    def bandwidth_hz(self) -> float:
+        """Banda informada pelo ESP32 (STATUS) ou, na falta dela, a da tabela."""
+        bw = self.stats.status.get("bandwidth_hz", 0)
+        if bw:
+            return float(bw)
+        info = SENSORS.get(self.sensor_type)
+        return float(info.bandwidth_hz) if info else self.fs_nominal / 2
 
     def online(self, timeout: float = 2.0) -> bool:
         return (time.monotonic() - self.stats.last_rx) < timeout

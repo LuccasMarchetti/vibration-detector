@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 class AcquisitionHub:
-    def __init__(self, buffer_seconds: float = 10.0):
+    def __init__(self, buffer_seconds: float = 60.0):
         self.nodes: dict[int, NodeState] = {1: NodeState(1, buffer_seconds), 2: NodeState(2, buffer_seconds)}
         self.port_map: dict[str, int] = {}  # porta -> node_id (aprendido dos pacotes)
         self.sources: list = []

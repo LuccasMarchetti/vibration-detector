@@ -10,13 +10,13 @@
  *  4      1    node_id         1 = MANCAL_1, 2 = MANCAL_2
  *  5      1    flags           VIB_FLAG_*
  *  6      1    full_scale_g    4, 8 ou 16
- *  7      1    reserved        0
+ *  7      1    sensor_type     0=?, 1=LSM6DS3, 2=LSM6DS3TR-C, 3=BMI160, 4=ICM-20948
  *  8      2    seq             contador de pacotes (wrap 65535)
  *  10     2    payload_len     bytes de payload (DATA: n_amostras * 6)
  *  12     8    timestamp_us    esp_timer_get_time() no inicio da leitura da FIFO
  *                              (~ instante da ULTIMA amostra do bloco)
  *  20     4    first_sample    indice global da 1a amostra do bloco
- *  24     2    odr_hz          taxa de amostragem nominal (6660)
+ *  24     2    odr_hz          taxa nominal do sensor (6660, 1600 ou 4500)
  *  26     N    payload
  *  26+N   2    crc16           CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF)
  *                              calculado sobre os bytes [2 .. 26+N-1]
@@ -54,7 +54,7 @@ typedef struct __attribute__((packed)) {
     uint8_t  node_id;
     uint8_t  flags;
     uint8_t  full_scale_g;
-    uint8_t  reserved;
+    uint8_t  sensor_type;
     uint16_t seq;
     uint16_t payload_len;
     uint64_t timestamp_us;
@@ -71,8 +71,9 @@ typedef struct __attribute__((packed)) {
     uint32_t uptime_ms;
     uint16_t wtm_samples;     /* watermark configurado */
     uint16_t max_fifo_words;  /* maior nivel de FIFO observado (palavras de 16 bits) */
-    uint8_t  who_am_i;        /* 0x69 = LSM6DS3, 0x6A = LSM6DS3TR-C */
-    uint8_t  reserved[3];
+    uint8_t  who_am_i;        /* ID lido do chip (0 = nenhum sensor respondeu) */
+    uint8_t  sensor_type;     /* igual ao campo do cabecalho */
+    uint16_t bandwidth_hz;    /* banda de -3 dB do acelerometro na configuracao usada */
 } vib_status_payload_t;
 
 _Static_assert(sizeof(vib_status_payload_t) == 24, "status size");

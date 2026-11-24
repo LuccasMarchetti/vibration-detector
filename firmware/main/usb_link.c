@@ -31,12 +31,12 @@ static void send_packet(uint8_t type, uint8_t flags, uint64_t ts, uint32_t first
         .node_id = g_stats.node_id,
         .flags = flags,
         .full_scale_g = g_stats.full_scale_g,
-        .reserved = 0,
+        .sensor_type = g_stats.sensor_type,
         .seq = s_seq++,
         .payload_len = len,
         .timestamp_us = ts,
         .first_sample = first,
-        .odr_hz = VIB_ODR_HZ,
+        .odr_hz = g_stats.odr_hz,
     };
     uint16_t crc = vib_crc16(0xFFFF, (const uint8_t *)&h + 2, sizeof(h) - 2);
     crc = vib_crc16(crc, payload, len);
@@ -58,6 +58,8 @@ static void send_status(void)
         .wtm_samples = g_stats.wtm_samples,
         .max_fifo_words = g_stats.max_fifo_words,
         .who_am_i = g_stats.who_am_i,
+        .sensor_type = g_stats.sensor_type,
+        .bandwidth_hz = g_stats.bandwidth_hz,
     };
     send_packet(VIB_PKT_STATUS, 0, esp_timer_get_time(), 0, &s, sizeof(s));
 }

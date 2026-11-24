@@ -1,7 +1,12 @@
-# Diagrama de pinagem — ESP32 ↔ LSM6DS3
+# Diagrama de pinagem — ESP32 ↔ acelerômetro (LSM6DS3, BMI160 ou ICM-20948)
 
 Os **dois nós são idênticos** (mesma fiação e mesmo firmware). A única diferença
 é o **jumper de identificação** no GPIO27.
+
+O firmware **detecta sozinho** qual dos três sensores está ligado. A fiação é a mesma:
+só muda o nome que cada fabricante de módulo imprime nos pinos (tabela no fim desta página).
+Os dois mancais podem até usar sensores diferentes, mas para comparar um com o outro
+prefira o mesmo modelo nos dois.
 
 ```
             ESP32 DevKitC (WROOM-32)                     Módulo LSM6DS3
@@ -36,6 +41,23 @@ Os **dois nós são idênticos** (mesma fiação e mesmo firmware). A única dif
 | ID do mancal  | GPIO27 | —                          | aberto = MANCAL_1, jumper p/ GND = MANCAL_2 |
 
 Todos os pinos podem ser alterados em `idf.py menuconfig` → *Vibration Node (Mancal)*.
+
+## Nomes dos pinos em cada módulo
+
+| ESP32  | Função SPI | LSM6DS3        | BMI160 (ex.: GY-BMI160) | ICM-20948 (ex.: SparkFun / genéricos) |
+|--------|------------|----------------|-------------------------|---------------------------------------|
+| 3V3    | alimentação| VCC / VIN      | VIN / 3V3               | VIN / 3V3                             |
+| GND    | terra      | GND            | GND                     | GND                                   |
+| GPIO18 | SCLK       | SCL / SPC      | SCL                     | SCL / SCLK                            |
+| GPIO23 | MOSI       | SDA / SDI      | SDA                     | SDA / SDI                             |
+| GPIO19 | MISO       | SDO / SA0      | SAO / SDO               | AD0 / SDO                             |
+| GPIO5  | CS         | CS             | CS                      | CS / NCS                              |
+| GPIO4  | interrupção| INT1           | INT1                    | *não usado* (pode deixar ligado ao INT) |
+
+- **ICM-20948:** não tem nível de watermark configurável, então o firmware lê a FIFO
+  por *polling* a cada 5 ms e o pino de interrupção fica sem uso. O SPI fica limitado a 7 MHz.
+- **BMI160:** precisa de uma leitura “dummy” para entrar em modo SPI. O firmware já faz isso.
+- Confira se o módulo tem regulador de tensão. Os três chips são de **3,3 V**; alimente pelo 3V3 do ESP32.
 GPIO18/19/23/5 são os pinos nativos (IO_MUX) do VSPI — mantenha-os para usar 8–10 MHz com folga.
 
 ## Dicas de montagem (importantes para medir vibração de verdade)
